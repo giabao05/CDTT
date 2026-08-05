@@ -31,7 +31,27 @@ public class SecurityConfiguration {
             .csrf(csrf -> csrf.disable())
             .cors(cors -> org.springframework.security.config.Customizer.withDefaults())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**", "/api/v1/auth", "/api/v1/products/**", "/api/v1/products", "/api/v1/categories/**", "/api/v1/categories", "/api/v1/brands/**", "/api/v1/brands", "/api/v1/orders/**", "/api/v1/orders", "/api/v1/banners/**", "/api/v1/banners", "/api/v1/articles/**", "/api/v1/articles", "/error").permitAll()
+                .requestMatchers(
+                    "/api/v1/auth/**", "/api/v1/auth",
+                    "/api/v1/products/**", "/api/v1/products",
+                    "/api/v1/categories/**", "/api/v1/categories",
+                    "/api/v1/brands/**", "/api/v1/brands",
+                    "/api/v1/orders/**", "/api/v1/orders",
+                    "/api/v1/banners/**", "/api/v1/banners",
+                    "/api/v1/articles/**", "/api/v1/articles",
+                    "/api/v1/favorites/**", "/api/v1/favorites",
+                    "/api/v1/notifications/**", "/api/v1/notifications",
+                    "/api/v1/imeis/**", "/api/v1/imeis",
+                    "/api/v1/warranty/**", "/api/v1/warranty",
+                    "/api/v1/reviews/**", "/api/v1/reviews",
+                    "/api/v1/vouchers/**", "/api/v1/vouchers",
+                    "/api/v1/installments/**", "/api/v1/installments",
+                    "/api/v1/trade-in/**",
+                    "/api/v1/users/**", "/api/v1/users",
+                    "/api/v1/analytics/**",
+                    "/api/v1/settings/**",
+                    "/error"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(sess -> sess

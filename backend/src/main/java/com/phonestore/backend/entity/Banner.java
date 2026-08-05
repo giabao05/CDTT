@@ -21,6 +21,8 @@ public class Banner {
     @Column(columnDefinition = "LONGTEXT")
     private String imageUrl;
     private String linkUrl;
+    @Column(columnDefinition = "TEXT")
+    private String description;
     private Integer sortOrder;
     private Boolean isActive;
 }

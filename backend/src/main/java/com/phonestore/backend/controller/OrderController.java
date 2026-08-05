@@ -26,4 +26,17 @@ public class OrderController {
     public ResponseEntity<List<OrderResponse>> getAllOrders() {
         return ResponseEntity.ok(orderService.getAllOrders());
     }
+
+    @GetMapping("/user/{email}")
+    public ResponseEntity<List<OrderResponse>> getOrdersByUserEmail(@PathVariable String email) {
+        return ResponseEntity.ok(orderService.getOrdersByUserEmail(email));
+    }
+
+    @PutMapping("/{orderId}/status")
+    public ResponseEntity<OrderResponse> updateOrderStatus(
+            @PathVariable String orderId,
+            @RequestBody java.util.Map<String, String> body) {
+        String status = body.get("status");
+        return ResponseEntity.ok(orderService.updateOrderStatus(orderId, status));
+    }
 }

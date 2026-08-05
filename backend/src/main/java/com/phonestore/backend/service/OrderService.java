@@ -10,6 +10,10 @@ import com.phonestore.backend.entity.ProductVariant;
 import com.phonestore.backend.repository.OrderItemRepository;
 import com.phonestore.backend.repository.OrderRepository;
 import com.phonestore.backend.repository.ProductVariantRepository;
+import com.phonestore.backend.repository.UserRepository;
+import com.phonestore.backend.repository.NotificationRepository;
+import com.phonestore.backend.entity.User;
+import com.phonestore.backend.entity.Notification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +32,8 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
 
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
@@ -45,12 +51,17 @@ public class OrderService {
                 .discountAmount(request.getDiscountAmount() != null ? request.getDiscountAmount() : BigDecimal.ZERO)
                 .build();
                 
+        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
+            User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+            order.setUser(user);
+        }
+                
         order = orderRepository.save(order);
 
         List<OrderItem> items = new ArrayList<>();
         for (OrderItemRequest itemRequest : request.getItems()) {
             ProductVariant variant = productVariantRepository.findById(itemRequest.getVariantId())
-                    .orElseThrow(() -> new RuntimeException("Variant not found"));
+                    .orElseThrow(() -> new RuntimeException("Variant not found for ID: " + itemRequest.getVariantId()));
                     
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -64,6 +75,25 @@ public class OrderService {
         }
         
         order.setItems(items);
+        
+        // Tạo thông báo cho người dùng
+        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
+            Notification userNotif = Notification.builder()
+                    .recipientEmail(request.getEmail())
+                    .title("Đặt hàng thành công")
+                    .message("Đơn hàng " + orderCode + " của bạn đã được đặt thành công. Chúng tôi sẽ sớm liên hệ để xác nhận.")
+                    .build();
+            notificationRepository.save(userNotif);
+        }
+        
+        // Tạo thông báo cho ADMIN
+        Notification adminNotif = Notification.builder()
+                .recipientEmail("ADMIN")
+                .title("Đơn hàng mới")
+                .message("Có đơn hàng mới " + orderCode + " trị giá " + request.getTotalAmount() + "đ từ khách hàng " + request.getFullName() + ".")
+                .build();
+        notificationRepository.save(adminNotif);
+
         return mapToResponse(order);
     }
 
@@ -71,6 +101,34 @@ public class OrderService {
         return orderRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    public List<OrderResponse> getOrdersByUserEmail(String email) {
+        return orderRepository.findByUserEmailOrderByCreatedAtDesc(email).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public OrderResponse updateOrderStatus(String orderCode, String status) {
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderCode));
+        order.setStatus(status);
+        if ("Đã giao".equals(status) || "Delivered".equals(status) || "Thành công".equals(status)) {
+             order.setPaymentStatus("Paid");
+        }
+        order = orderRepository.save(order);
+        
+        if (order.getUser() != null && order.getUser().getEmail() != null) {
+            Notification userNotif = Notification.builder()
+                    .recipientEmail(order.getUser().getEmail())
+                    .title("Cập nhật đơn hàng")
+                    .message("Đơn hàng " + orderCode + " của bạn đã được cập nhật sang trạng thái: " + status)
+                    .build();
+            notificationRepository.save(userNotif);
+        }
+        
+        return mapToResponse(order);
     }
 
     private OrderResponse mapToResponse(Order order) {

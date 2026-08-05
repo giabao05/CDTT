@@ -33,7 +33,15 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<ProductResponse> getFeaturedProducts() {
-        return productRepository.findByIsFeaturedTrueAndIsActiveTrue().stream()
+        // Fetch top 8 most purchased products with successful payments
+        List<Product> topProducts = productRepository.findTopSellingProducts(org.springframework.data.domain.PageRequest.of(0, 8));
+        
+        // If there are no successfully paid products yet, fallback to isFeatured products so the UI doesn't look empty
+        if (topProducts.isEmpty()) {
+            topProducts = productRepository.findByIsFeaturedTrueAndIsActiveTrue();
+        }
+        
+        return topProducts.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
