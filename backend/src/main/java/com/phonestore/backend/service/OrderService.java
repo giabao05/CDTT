@@ -34,6 +34,7 @@ public class OrderService {
     private final ProductVariantRepository productVariantRepository;
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    private final com.phonestore.backend.repository.ImeiTrackingRepository imeiTrackingRepository;
 
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
@@ -97,12 +98,14 @@ public class OrderService {
         return mapToResponse(order);
     }
 
+    @Transactional(readOnly = true)
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByUserEmail(String email) {
         return orderRepository.findByUserEmailOrderByCreatedAtDesc(email).stream()
                 .map(this::mapToResponse)
@@ -116,6 +119,38 @@ public class OrderService {
         order.setStatus(status);
         if ("Đã giao".equals(status) || "Delivered".equals(status) || "Thành công".equals(status)) {
              order.setPaymentStatus("Paid");
+             
+             // Assign IMEIs from stock
+             for (OrderItem item : order.getItems()) {
+                 if (item.getVariant() != null) {
+                     List<com.phonestore.backend.entity.ImeiTracking> availableImeis = 
+                             imeiTrackingRepository.findByProductVariantIdAndStatus(item.getVariant().getId(), "IN_STOCK");
+                     int assignedCount = 0;
+                     for (com.phonestore.backend.entity.ImeiTracking imei : availableImeis) {
+                         if (assignedCount >= item.getQuantity()) break;
+                         imei.setStatus("SOLD");
+                         imei.setOrderId(order.getId());
+                         imei.setExportDate(java.time.LocalDateTime.now());
+                         imei.setWarrantyEndDate(java.time.LocalDateTime.now().plusMonths(12));
+                         imeiTrackingRepository.save(imei);
+                         assignedCount++;
+                     }
+                     // Auto-generate for the remaining quantity
+                     while (assignedCount < item.getQuantity()) {
+                         String generatedImei = "35" + String.format("%06d", (int)(Math.random() * 1000000)) + String.format("%07d", (int)(Math.random() * 10000000));
+                         com.phonestore.backend.entity.ImeiTracking newImei = new com.phonestore.backend.entity.ImeiTracking();
+                         newImei.setImeiCode(generatedImei);
+                         newImei.setProductVariantId(item.getVariant().getId());
+                         newImei.setStatus("SOLD");
+                         newImei.setOrderId(order.getId());
+                         newImei.setImportDate(java.time.LocalDateTime.now());
+                         newImei.setExportDate(java.time.LocalDateTime.now());
+                         newImei.setWarrantyEndDate(java.time.LocalDateTime.now().plusMonths(12));
+                         imeiTrackingRepository.save(newImei);
+                         assignedCount++;
+                     }
+                 }
+             }
         }
         order = orderRepository.save(order);
         
@@ -157,6 +192,8 @@ public class OrderService {
                         .name(item.getProductName())
                         .qty(item.getQuantity())
                         .price(item.getUnitPrice())
+                        .slug(item.getVariant() != null && item.getVariant().getProduct() != null ? item.getVariant().getProduct().getSlug() : null)
+                        .productId(item.getVariant() != null && item.getVariant().getProduct() != null ? item.getVariant().getProduct().getId() : null)
                         .build()).collect(Collectors.toList()))
                 .build();
     }

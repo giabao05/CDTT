@@ -23,6 +23,11 @@ public class ReviewController {
         return service.getById(id);
     }
 
+    @GetMapping("/product/{productId}")
+    public List<Review> getByProductId(@PathVariable Long productId) {
+        return service.getByProductId(productId);
+    }
+
     @PostMapping
     public Review create(@RequestBody Review review) {
         return service.create(review);

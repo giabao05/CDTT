@@ -10,6 +10,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CategoryService {
     private final CategoryRepository repository;
+    private final com.phonestore.backend.repository.ProductRepository productRepository;
 
     public List<Category> getAll() {
         return repository.findAll();
@@ -24,6 +25,9 @@ public class CategoryService {
     }
 
     public void delete(Long id) {
+        if (productRepository.existsByCategoryId(id)) {
+            throw new RuntimeException("Không thể xóa danh mục này vì đang có sản phẩm thuộc danh mục!");
+        }
         repository.deleteById(id);
     }
 }

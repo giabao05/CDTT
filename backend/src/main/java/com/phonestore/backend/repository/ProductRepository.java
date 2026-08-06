@@ -23,4 +23,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
            "GROUP BY p " +
            "ORDER BY SUM(oi.quantity) DESC")
     List<Product> findTopSellingProducts(Pageable pageable);
+    
+    boolean existsByCategoryId(Long categoryId);
 }

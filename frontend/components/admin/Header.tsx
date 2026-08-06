@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Bell, Sun, Moon, ChevronDown, Store, Settings } from 'lucide-react';
+import api from '@/utils/api';
 
 const pageTitles: Record<string, string> = {
   '/admin': 'Tổng quan',
@@ -22,9 +23,11 @@ const pageSubs: Record<string, string> = {
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     // Check local storage or default to dark
@@ -35,7 +38,21 @@ export default function Header() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    
+    // Load user from localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        setUser(JSON.parse(userStr));
+      } catch (e) {}
+    }
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/login');
+  };
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -49,12 +66,41 @@ export default function Header() {
     }
   };
 
-  // Mock notifications
-  const notifications = [
-    { id: 1, title: 'Đơn hàng mới', desc: 'Có 1 đơn hàng mới #1024 vừa được đặt', time: '5 phút trước', unread: true },
-    { id: 2, title: 'Đánh giá mới', desc: 'Sản phẩm iPhone 15 Pro vừa có đánh giá 5 sao', time: '2 giờ trước', unread: true },
-    { id: 3, title: 'Thành viên mới', desc: 'Khách hàng nguyenvan@gmail.com vừa đăng ký', time: '1 ngày trước', unread: false },
-  ];
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get('/notifications/ADMIN');
+      setNotifications(res.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000); // Poll every 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await api.put(`/notifications/${id}/read`);
+      fetchNotifications();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    const unread = notifications.filter(n => !n.read);
+    for (const n of unread) {
+      await api.put(`/notifications/${n.id}/read`);
+    }
+    fetchNotifications();
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const title = pageTitles[pathname] || 'Trang quản trị';
   const sub = pageSubs[pathname] || '';
@@ -96,24 +142,30 @@ export default function Header() {
             className="relative w-9 h-9 rounded-lg bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] flex items-center justify-center text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:text-slate-600 dark:text-[#94a3b8] hover:border-slate-300 dark:border-[#334155] transition-colors"
           >
             <Bell size={15} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ef4444] rounded-full animate-ping" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ef4444] rounded-full" />
+            {unreadCount > 0 && (
+              <>
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ef4444] rounded-full animate-ping" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ef4444] rounded-full" />
+              </>
+            )}
           </button>
           
           {showNotifications && (
             <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-fadeIn">
               <div className="px-4 py-3 border-b border-slate-200 dark:border-[#1e293b] flex justify-between items-center">
                 <p className="text-[13px] font-semibold text-slate-900 dark:text-[#f1f5f9]">Thông báo mới</p>
-                <span className="text-[10px] text-[#6366f1] cursor-pointer hover:underline">Đánh dấu đã đọc</span>
+                <span className="text-[10px] text-[#6366f1] cursor-pointer hover:underline" onClick={markAllAsRead}>Đánh dấu đã đọc</span>
               </div>
               <div className="max-h-64 overflow-y-auto">
-                {notifications.map(notif => (
-                  <div key={notif.id} className={`p-3 border-b border-slate-200 dark:border-[#1e293b] hover:bg-slate-200 dark:bg-[#1e293b]/50 cursor-pointer transition-colors ${notif.unread ? 'bg-slate-200 dark:bg-[#1e293b]/20' : ''}`}>
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500">Không có thông báo nào</div>
+                ) : notifications.map(notif => (
+                  <div key={notif.id} onClick={() => !notif.read && handleMarkAsRead(notif.id)} className={`p-3 border-b border-slate-200 dark:border-[#1e293b] hover:bg-slate-200 dark:bg-[#1e293b]/50 cursor-pointer transition-colors ${!notif.read ? 'bg-slate-200 dark:bg-[#1e293b]/20' : ''}`}>
                     <div className="flex justify-between items-start mb-1">
-                      <p className={`text-[12px] ${notif.unread ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>{notif.title}</p>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-500 dark:text-[#64748b]">{notif.time}</span>
+                      <p className={`text-[12px] ${!notif.read ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>{notif.title}</p>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-500 dark:text-[#64748b]">{new Date(notif.createdAt).toLocaleDateString('vi-VN')}</span>
                     </div>
-                    <p className="text-[11px] text-slate-600 dark:text-[#94a3b8]">{notif.desc}</p>
+                    <p className="text-[11px] text-slate-600 dark:text-[#94a3b8]">{notif.message}</p>
                   </div>
                 ))}
               </div>
@@ -151,12 +203,12 @@ export default function Header() {
             }}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-200 dark:bg-[#1e293b] transition-colors"
           >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-[11px] font-bold text-slate-900 dark:text-white">
-              A
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-[11px] font-bold text-slate-900 dark:text-white uppercase">
+              {user?.name?.charAt(0) || 'A'}
             </div>
             <div className="hidden md:block text-left">
-              <p className="text-[11px] font-semibold text-slate-900 dark:text-[#f1f5f9] leading-none">Admin</p>
-              <p className="text-[9px] text-slate-500 dark:text-slate-500 dark:text-[#475569] mt-0.5">Super Admin</p>
+              <p className="text-[11px] font-semibold text-slate-900 dark:text-[#f1f5f9] leading-none">{user?.name || 'Admin'}</p>
+              <p className="text-[9px] text-slate-500 dark:text-slate-500 dark:text-[#475569] mt-0.5">{user?.role === 'ADMIN' ? 'Super Admin' : (user?.role || 'Admin')}</p>
             </div>
             <ChevronDown size={12} className="text-slate-500 dark:text-slate-500 dark:text-[#475569] hidden md:block" />
           </button>
@@ -164,20 +216,22 @@ export default function Header() {
           {showProfile && (
             <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-fadeIn">
               <div className="px-4 py-3 border-b border-slate-200 dark:border-[#1e293b]">
-                <p className="text-[12px] font-semibold text-slate-900 dark:text-[#f1f5f9]">Admin Chính</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-[#475569]">admin@phonestore.vn</p>
+                <p className="text-[12px] font-semibold text-slate-900 dark:text-[#f1f5f9]">{user?.name || 'Admin Chính'}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-[#475569] truncate">{user?.email || 'admin@phonestore.vn'}</p>
               </div>
-              {['Hồ sơ cá nhân', 'Cài đặt', 'Bảo mật'].map((item) => (
-                <button
-                  key={item}
-                  onClick={() => setShowProfile(false)}
-                  className="w-full px-4 py-2.5 text-left text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-slate-200 dark:bg-[#1e293b] hover:text-slate-600 dark:text-[#94a3b8] transition-colors"
-                >
-                  {item}
-                </button>
-              ))}
+              
+              <Link href="/admin/profile" onClick={() => setShowProfile(false)} className="block w-full px-4 py-2.5 text-left text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-slate-200 dark:bg-[#1e293b] hover:text-slate-600 dark:text-[#94a3b8] transition-colors">
+                Hồ sơ cá nhân
+              </Link>
+              <Link href="/admin/settings" onClick={() => setShowProfile(false)} className="block w-full px-4 py-2.5 text-left text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-slate-200 dark:bg-[#1e293b] hover:text-slate-600 dark:text-[#94a3b8] transition-colors">
+                Cài đặt
+              </Link>
+              <Link href="/admin/security" onClick={() => setShowProfile(false)} className="block w-full px-4 py-2.5 text-left text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-slate-200 dark:bg-[#1e293b] hover:text-slate-600 dark:text-[#94a3b8] transition-colors">
+                Bảo mật
+              </Link>
+
               <div className="border-t border-slate-200 dark:border-[#1e293b]">
-                <button className="w-full px-4 py-2.5 text-left text-[12px] text-[#f87171] hover:bg-[#ef4444]/10 transition-colors">
+                <button onClick={handleLogout} className="w-full px-4 py-2.5 text-left text-[12px] text-[#f87171] hover:bg-[#ef4444]/10 transition-colors">
                   Đăng xuất
                 </button>
               </div>

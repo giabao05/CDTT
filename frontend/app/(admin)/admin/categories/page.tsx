@@ -61,8 +61,16 @@ export default function CategoriesPage() {
     try {
       await api.delete(`/categories/${id}`);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting category:', err);
+      if (err.response?.data?.message) {
+        alert(err.response.data.message);
+      } else if (err.response?.data) {
+         // Spring boot error structure sometimes returns message as string or error field
+         alert(typeof err.response.data === 'string' ? err.response.data : (err.response.data.error || 'Không thể xóa danh mục này do đang có sản phẩm bên trong.'));
+      } else {
+        alert('Không thể xóa danh mục này do đang có sản phẩm bên trong.');
+      }
     }
   };
 

@@ -27,6 +27,7 @@ public class ProductVariant {
     
     private String color;
     private String storage;
+    private String ram;
     private BigDecimal price;
     private Integer stockQuantity;
     @Column(columnDefinition = "MEDIUMTEXT")

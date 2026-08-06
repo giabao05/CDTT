@@ -10,4 +10,6 @@ public interface ImeiTrackingRepository extends JpaRepository<ImeiTracking, Long
     ImeiTracking findByImeiCode(String imeiCode);
     List<ImeiTracking> findByProductVariantId(Long variantId);
     List<ImeiTracking> findByOrderId(Long orderId);
+    List<ImeiTracking> findByProductVariantIdAndStatus(Long variantId, String status);
+    List<ImeiTracking> findByOrderIdIn(List<Long> orderIds);
 }

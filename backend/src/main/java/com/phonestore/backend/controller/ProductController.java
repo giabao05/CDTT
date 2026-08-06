@@ -54,4 +54,10 @@ public class ProductController {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/variants/{variantId}/stock")
+    public ResponseEntity<Void> updateVariantStock(@PathVariable Long variantId, @RequestBody java.util.Map<String, Integer> request) {
+        productService.updateVariantStock(variantId, request.get("stockQuantity"));
+        return ResponseEntity.ok().build();
+    }
 }

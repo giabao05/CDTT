@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.tgdd.vn',
+      },
+      // You can add more patterns here if your product images come from other domains
+    ],
+  },
 };
 
 export default nextConfig;

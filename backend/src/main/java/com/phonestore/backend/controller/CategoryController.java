@@ -36,7 +36,14 @@ public class CategoryController {
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
-        service.delete(id);
+    public org.springframework.http.ResponseEntity<?> delete(@PathVariable Long id) {
+        try {
+            service.delete(id);
+            return org.springframework.http.ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return org.springframework.http.ResponseEntity
+                    .badRequest()
+                    .body(java.util.Map.of("message", e.getMessage()));
+        }
     }
 }

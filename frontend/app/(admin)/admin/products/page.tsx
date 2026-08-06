@@ -42,7 +42,7 @@ export default function ProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<Omit<Product, 'id'>>(emptyProduct);
-  const [variants, setVariants] = useState<{ color: string; colorCode?: string; storage: string; stock: string; price: string }[]>([]);
+  const [variants, setVariants] = useState<{ color: string; colorCode?: string; imageUrl?: string; storage: string; ram: string; stock: string; price: string }[]>([]);
   const [activeTab, setActiveTab] = useState<'basic' | 'specs' | 'variants'>('basic');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,13 +111,31 @@ export default function ProductsPage() {
       ...rest,
       images: p.images || (p.image ? [p.image] : [])
     });
-    setVariants(p.variants?.map(v => ({ 
-      color: v.color || '', 
-      storage: v.storage || '', 
-      stock: (v.stock || 0).toString(), 
-      price: (v.price || 0).toString(),
-      colorCode: v.colorCode || '#888888'
-    })) || []);
+    setVariants(p.variants?.map(v => {
+      let parsedColor = '#888888';
+      let parsedImg = '';
+      if (v.imageUrl) {
+        if (v.imageUrl.includes('|')) {
+          const parts = v.imageUrl.split('|');
+          parsedColor = parts[0];
+          parsedImg = parts[1];
+        } else if (v.imageUrl.startsWith('#')) {
+          parsedColor = v.imageUrl;
+        } else {
+          parsedImg = v.imageUrl;
+        }
+      }
+      return { 
+        id: (v as any).id,
+        color: v.color || '', 
+        storage: v.storage || '', 
+        ram: v.ram || '',
+        stock: (v.stockQuantity ?? v.stock ?? 0).toString(), 
+        price: (v.price || 0).toString(),
+        colorCode: parsedColor,
+        imageUrl: parsedImg
+      };
+    }) || []);
     setActiveTab('basic');
     setShowModal(true);
   };
@@ -142,12 +160,14 @@ export default function ProductsPage() {
           battery: form.battery
         },
         variants: variants.map(v => ({
-          sku: `${form.name}-${v.color}-${v.storage}`.toUpperCase().replace(/\s+/g, '-'),
+          id: (v as any).id,
+          sku: `${form.name}-${v.color}-${v.storage}-${v.ram}`.toUpperCase().replace(/\s+/g, '-'),
           color: v.color,
           storage: v.storage,
+          ram: v.ram,
           price: Number(v.price) || 0,
           stockQuantity: Number(v.stock) || 0,
-          imageUrl: (v as any).colorCode || null,
+          imageUrl: (v.colorCode || '#888888') + (v.imageUrl ? `|${v.imageUrl}` : ''),
           isActive: true
         })),
         images: form.images && form.images.length > 0 
@@ -659,7 +679,7 @@ export default function ProductsPage() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-[11px] font-medium text-slate-500 dark:text-slate-500 dark:text-[#475569]">Biến thể sản phẩm</label>
-                      <button onClick={() => setVariants([...variants, { color: '', storage: '', stock: '', price: '' }])} className="flex items-center gap-1 text-[11px] text-[#6366f1] hover:text-[#818cf8]">
+                      <button onClick={() => setVariants([...variants, { color: '', colorCode: '#888888', storage: '', ram: '', stock: '', price: '' }])} className="flex items-center gap-1 text-[11px] text-[#6366f1] hover:text-[#818cf8]">
                         <Plus size={11} /> Thêm biến thể
                       </button>
                     </div>
@@ -667,7 +687,7 @@ export default function ProductsPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-slate-200 dark:border-[#1e293b]">
-                            {['Màu sắc', 'Mã màu', 'Dung lượng', 'Kho', 'Giá', ''].map((h) => (
+                            {['Màu sắc', 'Mã màu', 'Ảnh phân loại', 'Dung lượng', 'RAM', 'Kho', 'Giá', ''].map((h) => (
                               <th key={h} className="px-3 py-2 text-left text-[10px] font-mono text-slate-600 dark:text-slate-400 dark:text-[#334155] uppercase">{h}</th>
                             ))}
                           </tr>
@@ -697,19 +717,44 @@ export default function ProductsPage() {
                                 <div className="flex items-center gap-1.5">
                                   <input
                                     type="color"
-                                    value={(v as any).colorCode || '#888888'}
+                                    value={v.colorCode || '#888888'}
                                     onChange={(e) => {
-                                    const newV = [...variants];
-                                    newV[i] = { ...newV[i], colorCode: e.target.value };
-                                    setVariants(newV);
-                                  }}
-                                  className="w-8 h-7 rounded cursor-pointer border border-slate-200 dark:border-[#1e293b] bg-transparent p-0.5"
-                                  title="Chọn màu"
-                                />
-                                <span className="text-[9px] font-mono text-slate-500 dark:text-slate-500 dark:text-[#475569]">{(v as any).colorCode || '#888888'}</span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2">
+                                      const newV = [...variants];
+                                      newV[i] = { ...newV[i], colorCode: e.target.value };
+                                      setVariants(newV);
+                                    }}
+                                    className="w-8 h-7 rounded cursor-pointer border border-slate-200 dark:border-[#1e293b] bg-transparent p-0.5"
+                                    title="Chọn mã màu"
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 w-16">
+                                <label className="flex items-center justify-center w-9 h-9 border border-dashed border-slate-300 dark:border-slate-600 rounded cursor-pointer overflow-hidden group hover:border-indigo-500 transition-colors">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => {
+                                          const newV = [...variants];
+                                          newV[i] = { ...newV[i], imageUrl: reader.result as string };
+                                          setVariants(newV);
+                                        };
+                                        reader.readAsDataURL(file);
+                                      }
+                                    }}
+                                  />
+                                  {v.imageUrl && !v.imageUrl.startsWith('#') ? (
+                                    <img src={v.imageUrl.startsWith('http') ? v.imageUrl : (v.imageUrl.startsWith('data:image') ? v.imageUrl : `http://localhost:8080/uploads/${v.imageUrl}`)} className="w-full h-full object-cover" alt="Variant" />
+                                  ) : (
+                                    <Plus size={14} className="text-slate-400 group-hover:text-indigo-500" />
+                                  )}
+                                </label>
+                              </td>
+                              <td className="px-3 py-2">
                               <input
                                 value={v.storage}
                                 onChange={(e) => {
@@ -718,6 +763,18 @@ export default function ProductsPage() {
                                   setVariants(newV);
                                 }}
                                   placeholder="VD: 256GB"
+                                  className="w-full bg-transparent border border-slate-200 dark:border-[#1e293b] rounded px-2 py-1 text-[11px] font-mono text-slate-900 dark:text-[#f1f5f9] focus:outline-none focus:border-[#6366f1]/50"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                              <input
+                                value={v.ram}
+                                onChange={(e) => {
+                                  const newV = [...variants];
+                                  newV[i] = { ...newV[i], ram: e.target.value };
+                                  setVariants(newV);
+                                }}
+                                  placeholder="VD: 8GB"
                                   className="w-full bg-transparent border border-slate-200 dark:border-[#1e293b] rounded px-2 py-1 text-[11px] font-mono text-slate-900 dark:text-[#f1f5f9] focus:outline-none focus:border-[#6366f1]/50"
                                 />
                               </td>

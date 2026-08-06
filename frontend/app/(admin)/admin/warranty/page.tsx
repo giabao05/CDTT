@@ -35,7 +35,7 @@ export default function WarrantyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [imeiSearch, setImeiSearch] = useState('');
   const [searchImeiCode, setSearchImeiCode] = useState('');
-  const [foundImei, setFoundImei] = useState<ImeiTracking | null>(null);
+  const [foundImeis, setFoundImeis] = useState<any[]>([]);
   const [isImeiModalOpen, setIsImeiModalOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
   const [selectedVariantId, setSelectedVariantId] = useState<number | ''>('');
@@ -49,7 +49,7 @@ export default function WarrantyPage() {
   const [techNote, setTechNote] = useState('');
   const [newWarranty, setNewWarranty] = useState({
     imeiCode: '', customerName: '', customerPhone: '', customerEmail: '',
-    productName: '', issueDescription: '', warrantyEndDate: '',
+    productName: '', issueDescription: '', warrantyEndDate: '', orderId: ''
   });
 
   const fetchAll = useCallback(async () => {
@@ -65,10 +65,10 @@ export default function WarrantyPage() {
     e.preventDefault();
     if (!searchImeiCode.trim()) return;
     try {
-      const res = await api.get(`/imeis/search/${searchImeiCode.trim()}`);
-      setFoundImei(res.data ?? null);
-      if (!res.data) alert('Khong tim thay IMEI!');
-    } catch { alert('Khong tim thay IMEI!'); setFoundImei(null); }
+      const res = await api.get(`/imeis/advanced-search?q=${encodeURIComponent(searchImeiCode.trim())}`);
+      setFoundImeis(res.data || []);
+      if (!res.data || res.data.length === 0) alert('Khong tim thay IMEI!');
+    } catch { alert('Khong tim thay IMEI!'); setFoundImeis([]); }
   };
 
   const handleSaveImei = async (e: React.FormEvent) => {
@@ -113,6 +113,32 @@ export default function WarrantyPage() {
     });
   };
 
+  useEffect(() => {
+    const code = newWarranty.imeiCode.trim();
+    if (code.length >= 10) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await api.get(`/imeis/check/${code}`);
+          if (res.data) {
+            const d = res.data;
+            setNewWarranty(p => ({
+              ...p,
+              customerName: p.customerName || d.customerName || '',
+              customerPhone: p.customerPhone || d.customerPhone || '',
+              customerEmail: p.customerEmail || d.customerEmail || '',
+              productName: p.productName || d.productName || '',
+              warrantyEndDate: p.warrantyEndDate || d.warrantyEndDate || '',
+              orderId: p.orderId || (d.orderCode ? d.orderCode.replace(/\D/g, '') : '')
+            }));
+          }
+        } catch (e) {
+          // ignore
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [newWarranty.imeiCode]);
+
 
   const handleCreateWarranty = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,11 +156,12 @@ export default function WarrantyPage() {
       if (newWarranty.customerEmail?.trim()) payload.customerEmail = newWarranty.customerEmail.trim();
       if (newWarranty.productName?.trim()) payload.productName = newWarranty.productName.trim();
       if (newWarranty.warrantyEndDate?.trim()) payload.warrantyEndDate = newWarranty.warrantyEndDate.trim();
+      if (newWarranty.orderId?.trim()) payload.orderId = parseInt(newWarranty.orderId.trim());
 
       await api.post('/warranty', payload);
       alert('Tiep nhan thanh cong!');
       setIsWarrantyModalOpen(false);
-      setNewWarranty({ imeiCode: '', customerName: '', customerPhone: '', customerEmail: '', productName: '', issueDescription: '', warrantyEndDate: '' });
+      setNewWarranty({ imeiCode: '', customerName: '', customerPhone: '', customerEmail: '', productName: '', issueDescription: '', warrantyEndDate: '', orderId: '' });
       fetchAll();
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.response?.data || 'Co loi xay ra.';
@@ -252,19 +279,51 @@ export default function WarrantyPage() {
           <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-xl p-6 lg:col-span-1">
             <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center"><Search size={20} className="text-indigo-400"/></div><h2 className="text-lg font-semibold text-slate-900 dark:text-white">Tra cuu nhanh</h2></div>
             <form onSubmit={handleSearchImei} className="mb-4 flex gap-2">
-              <input type="text" placeholder="Nhap ma IMEI/Serial..." value={searchImeiCode} onChange={e=>setSearchImeiCode(e.target.value)} className="flex-1 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-[#1e293b] rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"/>
+              <input type="text" placeholder="Nhap IMEI, SDT hoac ten KH..." value={searchImeiCode} onChange={e=>setSearchImeiCode(e.target.value)} className="flex-1 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-[#1e293b] rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"/>
               <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Tim</button>
             </form>
-            {foundImei&&(<div className="bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-xl p-4">
-              <div className="flex justify-between items-start mb-3"><h3 className="font-mono font-bold text-indigo-400">{foundImei.imeiCode}</h3>{imeiStatusBadge(foundImei.status)}</div>
-              <div className="space-y-2 text-xs text-slate-500">
-                <p className="flex justify-between"><span>Variant ID:</span><span className="font-mono text-white">#{foundImei.productVariantId}</span></p>
-                <p className="flex justify-between"><span>Ngay nhap:</span><span>{new Date(foundImei.importDate).toLocaleDateString('vi-VN')}</span></p>
-                {foundImei.orderId&&<p className="flex justify-between"><span>Don hang:</span><span className="font-mono text-emerald-400">#{foundImei.orderId}</span></p>}
-                {foundImei.warrantyEndDate&&<p className="flex justify-between"><span>Han BH:</span><span className="text-amber-400">{new Date(foundImei.warrantyEndDate).toLocaleDateString('vi-VN')}</span></p>}
+            {foundImeis.length > 0 && (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                {foundImeis.map(foundImei => {
+                  const isExpired = foundImei.warrantyEndDate && new Date(foundImei.warrantyEndDate) < new Date();
+                  return (
+                  <div key={foundImei.id} className="bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-xl p-4">
+                    <div className="flex justify-between items-start mb-3"><h3 className="font-mono font-bold text-indigo-400">{foundImei.imeiCode}</h3>{imeiStatusBadge(foundImei.status)}</div>
+                    <div className="space-y-2 text-xs text-slate-500">
+                      <p className="flex justify-between"><span>Variant ID:</span><span className="font-mono text-white">#{foundImei.productVariantId}</span></p>
+                      <p className="flex justify-between"><span>Ngay nhap:</span><span>{new Date(foundImei.importDate).toLocaleDateString('vi-VN')}</span></p>
+                      {foundImei.orderCode && <p className="flex justify-between"><span>Don hang:</span><span className="font-mono text-emerald-400">{foundImei.orderCode}</span></p>}
+                      {foundImei.customerName && <p className="flex justify-between"><span>Khach hang:</span><span className="font-medium text-white">{foundImei.customerName} - {foundImei.customerPhone}</span></p>}
+                      {foundImei.warrantyEndDate && <p className="flex justify-between"><span>Han BH:</span><span className={`font-medium ${isExpired ? 'text-red-400' : 'text-amber-400'}`}>{new Date(foundImei.warrantyEndDate).toLocaleDateString('vi-VN')} {isExpired ? '(Het han)' : ''}</span></p>}
+                    </div>
+                    {foundImei.status==='SOLD' && (
+                      <button 
+                        onClick={() => {
+                          if (isExpired) {
+                            alert('Thiet bi nay da het han bao hanh!');
+                          } else {
+                            setIsWarrantyModalOpen(true);
+                            setNewWarranty({
+                              imeiCode: foundImei.imeiCode,
+                              customerName: foundImei.customerName || '',
+                              customerPhone: foundImei.customerPhone || '',
+                              customerEmail: foundImei.customerEmail || '',
+                              productName: foundImei.productName || '',
+                              warrantyEndDate: foundImei.warrantyEndDate || '',
+                              orderId: foundImei.orderCode ? foundImei.orderCode.replace(/\D/g, '') : '',
+                              issueDescription: ''
+                            });
+                          }
+                        }} 
+                        className={`w-full mt-4 ${isExpired ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' : 'bg-amber-600 hover:bg-amber-700 text-white'} py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2`}
+                      >
+                        <AlertTriangle size={14}/> {isExpired ? 'Da het han Bao hanh' : 'Tiep nhan Bao hanh'}
+                      </button>
+                    )}
+                  </div>
+                )})}
               </div>
-              {foundImei.status==='SOLD'&&(<button onClick={()=>{setNewWarranty(p=>({...p,imeiCode:foundImei.imeiCode}));setIsWarrantyModalOpen(true);}} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-2"><AlertTriangle size={14}/> Tiep nhan Bao hanh</button>)}
-            </div>)}
+            )}
           </div>
           <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-xl overflow-hidden flex flex-col lg:col-span-2" style={{maxHeight:'500px'}}>
             <div className="p-4 border-b border-slate-200 dark:border-[#1e293b] flex justify-between items-center">
@@ -278,7 +337,7 @@ export default function WarrantyPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-[#1e293b]">
                   {filteredImeis.map(item=>(
-                    <tr key={item.id} onClick={()=>{setSearchImeiCode(item.imeiCode);setFoundImei(item);}} className="hover:bg-slate-50 dark:hover:bg-[#1a2235] cursor-pointer transition-colors">
+                    <tr key={item.id} onClick={()=>{setSearchImeiCode(item.imeiCode);}} className="hover:bg-slate-50 dark:hover:bg-[#1a2235] cursor-pointer transition-colors">
                       <td className="px-4 py-3 font-mono font-medium text-xs text-slate-900 dark:text-white">{item.imeiCode}</td>
                       <td className="px-4 py-3">{imeiStatusBadge(item.status)}</td>
                       <td className="px-4 py-3 text-xs text-slate-400">#{item.productVariantId}</td>
@@ -369,7 +428,7 @@ export default function WarrantyPage() {
                 <div><label className="block text-xs font-medium text-slate-400 mb-1.5">Email</label><input type="email" value={newWarranty.customerEmail} onChange={e=>setNewWarranty(p=>({...p,customerEmail:e.target.value}))} placeholder="email@example.com" className={INP}/></div>
                 <div><label className="block text-xs font-medium text-slate-400 mb-1.5">Ten san pham</label><input value={newWarranty.productName} onChange={e=>setNewWarranty(p=>({...p,productName:e.target.value}))} placeholder="iPhone 15 Pro Max" className={INP}/></div>
                 <div><label className="block text-xs font-medium text-slate-400 mb-1.5">Han bao hanh den</label><input type="date" value={newWarranty.warrantyEndDate} onChange={e=>setNewWarranty(p=>({...p,warrantyEndDate:e.target.value}))} className={INP}/></div>
-                <div><label className="block text-xs font-medium text-slate-400 mb-1.5">Don hang lien quan</label><input type="number" placeholder="ID don hang (neu co)" className={INP}/></div>
+                <div><label className="block text-xs font-medium text-slate-400 mb-1.5">Don hang lien quan</label><input type="number" value={newWarranty.orderId} onChange={e=>setNewWarranty(p=>({...p,orderId:e.target.value}))} placeholder="ID don hang (neu co)" className={INP}/></div>
                 <div className="col-span-2"><label className="block text-xs font-medium text-slate-400 mb-1.5">Mo ta loi / Yeu cau *</label><textarea value={newWarranty.issueDescription} onChange={e=>setNewWarranty(p=>({...p,issueDescription:e.target.value}))} rows={3} placeholder="Mo ta chi tiet loi cua thiet bi..." className={INP} required/></div>
               </div>
               <div className="pt-4 flex justify-end gap-3 border-t border-slate-200 dark:border-[#1e293b]">

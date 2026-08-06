@@ -21,12 +21,17 @@ function mapProduct(backendData: any): Product {
     isNew: false,
     inStock: true,
     variants: backendData.variants?.map((v: any) => {
-      // If imageUrl is a hex color code (stored by admin), use it directly
       let colorCode = '#888888';
-      if (v.imageUrl && /^#[0-9a-fA-F]{6}$/.test(v.imageUrl)) {
-        colorCode = v.imageUrl;
+      let parsedImageUrl = v.imageUrl || '';
+
+      if (parsedImageUrl.includes('|')) {
+        const parts = parsedImageUrl.split('|');
+        colorCode = parts[0];
+        parsedImageUrl = parts[1];
+      } else if (/^#[0-9a-fA-F]{6}$/.test(parsedImageUrl)) {
+        colorCode = parsedImageUrl;
+        parsedImageUrl = '';
       } else {
-        // Fallback: guess from color name
         const c = (v.color || '').toLowerCase();
         if (c.includes('đỏ') || c.includes('red')) colorCode = '#ef4444';
         else if (c.includes('xanh lá') || c.includes('green')) colorCode = '#22c55e';
@@ -47,8 +52,9 @@ function mapProduct(backendData: any): Product {
         id: v.id.toString(),
         color: v.color || '',
         colorCode,
+        imageUrl: parsedImageUrl,
         storage: v.storage || '',
-        ram: '8GB',
+        ram: v.ram || '8GB',
         price: v.price || backendData.basePrice || 0,
         stock: v.stockQuantity || 0,
         sku: v.sku || ''
@@ -107,10 +113,49 @@ export async function fetchProductBySlug(slug: string): Promise<Product | null> 
     }
     if (!res.ok) throw new Error('Failed to fetch product');
     const data = await res.json();
-    return mapProduct(data);
+    const product = mapProduct(data);
+    
+    // Fetch reviews
+    try {
+      const reviewRes = await fetch(`${API_BASE_URL}/reviews/product/${product.id}`);
+      if (reviewRes.ok) {
+        const reviewsData = await reviewRes.json();
+        product.reviews = reviewsData.map((r: any) => ({
+          id: r.id.toString(),
+          author: r.authorName || `Khách hàng ${r.userId || ''}`,
+          avatar: r.authorAvatar || `https://i.pravatar.cc/150?u=${r.userId || r.id}`,
+          rating: r.rating || 5,
+          date: new Date(r.createdAt || Date.now()).toLocaleDateString('vi-VN'),
+          title: (r.rating || 5) >= 4 ? 'Tuyệt vời' : (r.rating === 3 ? 'Bình thường' : 'Chưa tốt'),
+          body: r.comment || '',
+          verified: true
+        }));
+      }
+    } catch (e) {
+      console.error('Error fetching reviews:', e);
+    }
+    
+    return product;
   } catch (error) {
     console.error(`Error fetching product ${slug}:`, error);
     return null;
+  }
+}
+
+export async function createReview(reviewData: any): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/reviews`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(reviewData),
+    });
+    if (!res.ok) throw new Error('Failed to create review');
+    return await res.json();
+  } catch (error) {
+    console.error('Error creating review:', error);
+    throw error;
   }
 }
 

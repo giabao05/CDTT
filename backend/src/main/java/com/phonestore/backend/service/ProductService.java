@@ -23,6 +23,7 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
     private final OrderItemRepository orderItemRepository;
+    private final com.phonestore.backend.repository.ProductVariantRepository productVariantRepository;
 
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllActiveProducts() {
@@ -142,6 +143,7 @@ public class ProductService {
                 var.setSku(vReq.getSku());
                 var.setColor(vReq.getColor());
                 var.setStorage(vReq.getStorage());
+                var.setRam(vReq.getRam());
                 var.setPrice(vReq.getPrice());
                 var.setStockQuantity(vReq.getStockQuantity());
                 var.setImageUrl(vReq.getImageUrl());
@@ -240,30 +242,46 @@ public class ProductService {
                 }
             }
 
-            // Collect new SKUs from the request
+            // Collect new IDs and SKUs from the request
             java.util.Set<String> requestedSkus = new java.util.HashSet<>();
+            java.util.Set<Long> requestedIds = new java.util.HashSet<>();
             for (ProductVariantRequest vReq : request.getVariants()) {
                 if (vReq.getSku() != null) {
                     requestedSkus.add(vReq.getSku());
+                }
+                if (vReq.getId() != null) {
+                    requestedIds.add(vReq.getId());
                 }
             }
 
             // Remove variants that are not in the new request
             product.getVariants().removeIf(existingVar ->
-                existingVar.getSku() == null || !requestedSkus.contains(existingVar.getSku())
+                (existingVar.getId() != null && !requestedIds.contains(existingVar.getId())) &&
+                (existingVar.getSku() == null || !requestedSkus.contains(existingVar.getSku()))
             );
 
             // Update existing or add new variants
             for (ProductVariantRequest vReq : request.getVariants()) {
-                ProductVariant variant = existingVariants.get(vReq.getSku());
+                ProductVariant variant = null;
+                if (vReq.getId() != null) {
+                    variant = product.getVariants().stream()
+                        .filter(v -> vReq.getId().equals(v.getId()))
+                        .findFirst()
+                        .orElse(null);
+                }
+                if (variant == null && vReq.getSku() != null) {
+                    variant = existingVariants.get(vReq.getSku());
+                }
+                
                 if (variant == null) {
                     variant = new ProductVariant();
                     variant.setProduct(product);
-                    variant.setSku(vReq.getSku());
                     product.getVariants().add(variant);
                 }
+                variant.setSku(vReq.getSku());
                 variant.setColor(vReq.getColor());
                 variant.setStorage(vReq.getStorage());
+                variant.setRam(vReq.getRam());
                 variant.setPrice(vReq.getPrice());
                 variant.setStockQuantity(vReq.getStockQuantity() != null ? vReq.getStockQuantity() : 0);
                 variant.setImageUrl(vReq.getImageUrl());
@@ -283,6 +301,14 @@ public class ProductService {
         // Nullify variant references in order_items to avoid FK constraint violation
         orderItemRepository.nullifyVariantsByProductId(id);
         productRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void updateVariantStock(Long variantId, Integer stockQuantity) {
+        ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Variant not found"));
+        variant.setStockQuantity(stockQuantity);
+        productVariantRepository.save(variant);
     }
 
     private ProductResponse mapToResponse(Product p) {
@@ -339,6 +365,7 @@ public class ProductService {
                     .sku(v.getSku())
                     .color(v.getColor())
                     .storage(v.getStorage())
+                    .ram(v.getRam())
                     .price(v.getPrice())
                     .stockQuantity(v.getStockQuantity())
                     .imageUrl(v.getImageUrl())

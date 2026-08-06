@@ -6,6 +6,7 @@ export interface ProductVariant {
   id: string;
   color: string;
   colorCode: string;
+  imageUrl?: string;
   storage: string;
   ram: string;
   price: number;

@@ -19,6 +19,8 @@ public class Review {
     private Long id;
     private Long productId;
     private Long userId;
+    private String authorName;
+    private String authorAvatar;
     private Integer rating;
     @Column(columnDefinition = "TEXT")
     private String comment;

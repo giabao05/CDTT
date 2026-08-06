@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Smartphone,
@@ -46,6 +46,23 @@ const navItems = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        setUser(JSON.parse(userStr));
+      } catch (e) {}
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/login');
+  };
 
   return (
     <aside
@@ -116,10 +133,10 @@ export default function Sidebar() {
             <p className="text-[10px] font-mono text-slate-600 dark:text-slate-400 dark:text-[#334155] uppercase tracking-widest px-2 mb-3">
               Hệ thống
             </p>
-            <button className="w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-[13px] font-medium text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-slate-200 dark:bg-[#1e293b]/60 hover:text-slate-600 dark:text-[#94a3b8] transition-colors">
+            <Link href="/admin/notifications" className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${pathname === '/admin/notifications' ? 'bg-[#6366f1]/15 text-[#818cf8]' : 'text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-slate-200 dark:bg-[#1e293b]/60 hover:text-slate-600 dark:text-[#94a3b8]'}`}>
               <Bell size={16} />
               <span>Thông báo</span>
-            </button>
+            </Link>
           </div>
         )}
       </nav>
@@ -127,22 +144,22 @@ export default function Sidebar() {
       {/* Admin info */}
       <div className={`border-t border-slate-200 dark:border-[#1e293b] p-3 ${collapsed ? 'flex justify-center' : ''}`}>
         {collapsed ? (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white">
-            A
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white uppercase">
+            {user?.name?.charAt(0) || 'A'}
           </div>
         ) : (
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white flex-shrink-0">
-              A
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white flex-shrink-0 uppercase">
+              {user?.name?.charAt(0) || 'A'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-[12px] font-semibold text-slate-900 dark:text-[#f1f5f9] truncate">Admin Chính</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-500 dark:text-[#475569] truncate">admin@phonestore.vn</p>
+              <p className="text-[12px] font-semibold text-slate-900 dark:text-[#f1f5f9] truncate">{user?.name || 'Admin'}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-500 dark:text-[#475569] truncate">{user?.email || 'admin'}</p>
             </div>
           </div>
         )}
         {!collapsed && (
-          <button className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-[#ef4444]/10 hover:text-[#f87171] transition-colors">
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] hover:bg-[#ef4444]/10 hover:text-[#f87171] transition-colors">
             <LogOut size={13} />
             <span>Đăng xuất</span>
           </button>

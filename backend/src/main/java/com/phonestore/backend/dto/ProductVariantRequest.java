@@ -11,9 +11,11 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductVariantRequest {
+    private Long id;
     private String sku;
     private String color;
     private String storage;
+    private String ram;
     private BigDecimal price;
     private Integer stockQuantity;
     private String imageUrl;

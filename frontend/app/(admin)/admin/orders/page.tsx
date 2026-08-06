@@ -152,8 +152,10 @@ export default function OrdersPage() {
                     <p className="text-[10px] text-slate-500 dark:text-slate-500 dark:text-[#475569]">{order.phone}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-[#64748b]">{order.items[0].name}</p>
-                    {order.items.length > 1 && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-[#64748b]">
+                      {order.items?.[0]?.name || 'Chưa có sản phẩm'}
+                    </p>
+                    {order.items && order.items.length > 1 && (
                       <p className="text-[10px] text-slate-600 dark:text-slate-400 dark:text-[#334155]">+{order.items.length - 1} sản phẩm khác</p>
                     )}
                   </td>

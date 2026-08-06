@@ -27,6 +27,16 @@ public class ImeiTrackingController {
     public ImeiTracking getByImei(@PathVariable String imeiCode) {
         return service.getByImei(imeiCode);
     }
+    
+    @GetMapping("/advanced-search")
+    public List<java.util.Map<String, Object>> advancedSearch(@RequestParam String q) {
+        return service.advancedSearch(q);
+    }
+    
+    @GetMapping("/check/{imeiCode}")
+    public java.util.Map<String, Object> checkImei(@PathVariable String imeiCode) {
+        return service.checkImeiDetails(imeiCode);
+    }
 
     @PostMapping
     public ImeiTracking create(@RequestBody ImeiTracking imeiTracking) {

@@ -115,6 +115,14 @@ export default function ProfilePage() {
                     if (s.includes('cancel') || s.includes('hủy')) return 'bg-red-50 text-red-600 border-red-200';
                     return 'bg-amber-50 text-amber-600 border-amber-200';
                   };
+
+                  const s = (order.status || '').toLowerCase();
+                  const isCancelled = s.includes('cancel') || s.includes('hủy');
+                  let stepIdx = 0;
+                  if (s.includes('confirm') || s.includes('process') || s.includes('xác nhận') || s.includes('xử lý')) stepIdx = 1;
+                  if (s.includes('ship') || s.includes('giao')) stepIdx = 2;
+                  if (s.includes('deliver') || s.includes('đã giao') || s.includes('hoàn thành')) stepIdx = 3;
+
                   return (
                     <div key={idx} className="bg-white border border-zinc-200 rounded-xl overflow-hidden hover:shadow-xl hover:border-zinc-300 transition-all duration-300 group">
                       {/* Order Header */}
@@ -143,13 +151,6 @@ export default function ProfilePage() {
                           
                           {/* Active Progress Line */}
                           {(() => {
-                            const s = (order.status || '').toLowerCase();
-                            const isCancelled = s.includes('cancel') || s.includes('hủy');
-                            let stepIdx = 0;
-                            if (s.includes('confirm') || s.includes('process') || s.includes('xác nhận') || s.includes('xử lý')) stepIdx = 1;
-                            if (s.includes('ship') || s.includes('giao')) stepIdx = 2;
-                            if (s.includes('deliver') || s.includes('đã giao') || s.includes('hoàn thành')) stepIdx = 3;
-                            
                             return (
                               <>
                                 <div 
@@ -195,9 +196,17 @@ export default function ProfilePage() {
                                 <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 group-hover/item:bg-[#E8002D] group-hover/item:scale-150 transition-all" />
                                 <span className="text-zinc-700 font-500 text-sm">{item.name}</span>
                               </div>
-                              <div className="flex items-center gap-8">
+                              <div className="flex items-center gap-6">
                                 <span className="text-zinc-400 font-500 text-sm text-right min-w-[30px]">x{item.qty}</span>
                                 <span className="font-700 text-zinc-800 text-sm text-right min-w-[90px]">{item.price?.toLocaleString('vi-VN')} đ</span>
+                                {!isCancelled && stepIdx === 3 && item.slug && (
+                                  <button 
+                                    onClick={() => router.push(`/product/${item.slug}?review=true`)}
+                                    className="px-3 py-1.5 bg-white border border-[#E8002D] text-[#E8002D] text-xs font-700 rounded hover:bg-[#E8002D] hover:text-white transition-colors"
+                                  >
+                                    Đánh giá
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}

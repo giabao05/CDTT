@@ -20,6 +20,10 @@ public class ReviewService {
         return repository.findById(id).orElseThrow(() -> new RuntimeException("Review not found"));
     }
 
+    public List<Review> getByProductId(Long productId) {
+        return repository.findByProductId(productId);
+    }
+
     public Review create(Review review) {
         return repository.save(review);
     }

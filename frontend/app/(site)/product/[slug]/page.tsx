@@ -67,21 +67,51 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
   const isFavorite = favoriteIds.includes(productId);
 
   const [activeImage, setActiveImage] = useState(0);
+  const [overrideImage, setOverrideImage] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [selectedStorage, setSelectedStorage] = useState<string>('');
+  const [selectedRam, setSelectedRam] = useState<string>('');
   const [qty, setQty] = useState(1);
   const [activeTab, setActiveTab] = useState<'specs' | 'reviews'>('specs');
   const [addedToCart, setAddedToCart] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', body: '' });
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    // Check if URL has ?review=true
+    if (typeof window !== 'undefined' && window.location.search.includes('review=true')) {
+      setTimeout(() => {
+        setActiveTab('reviews');
+        setShowReviewForm(true);
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }, 500);
+    }
+  }, []);
+
+  const resolveImageUrl = (url?: string) => {
+    if (!url || url.startsWith('#')) return '';
+    if (url.startsWith('http') || url.startsWith('data:image')) return url;
+    return `http://localhost:8080/uploads/${url}`;
+  };
 
   const colors = [...new Set((product.variants || []).map(v => v.color))].filter(Boolean);
+  
   const storagesForColor = (color: string) =>
     [...new Set((product.variants || []).filter(v => v.color === color).map(v => v.storage))].filter(Boolean);
+    
+  const ramsForStorage = (color: string, storage: string) => 
+    [...new Set((product.variants || []).filter(v => (color ? v.color === color : true) && v.storage === storage).map(v => v.ram))].filter(Boolean);
 
-  const initColor = selectedColor || (colors.length > 0 ? colors[0] : '');
-  const initStorage = selectedStorage || (storagesForColor(initColor).length > 0 ? storagesForColor(initColor)[0] : '');
+  const initColor = selectedColor;
+  const storages = initColor ? storagesForColor(initColor) : [...new Set((product.variants || []).map(v => v.storage))].filter(Boolean);
+  const initStorage = selectedStorage;
+  
+  const rams = initStorage ? ramsForStorage(initColor, initStorage) : [...new Set((product.variants || []).map(v => v.ram))].filter(Boolean);
+  const initRam = selectedRam;
 
   const selectedVariant: ProductVariant | undefined = (product.variants || []).find(
-    v => v.color === initColor && v.storage === initStorage
+    v => v.color === initColor && v.storage === initStorage && v.ram === initRam
   );
 
   const price = selectedVariant?.salePrice ?? selectedVariant?.price ?? product.basePrice;
@@ -92,16 +122,53 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
   const inStock = selectedVariant ? (selectedVariant.stock > 0) : true;
 
   const handleAddToCart = () => {
-    if (!selectedVariant) return;
+    if (!selectedVariant) {
+      alert('Vui lòng chọn đầy đủ màu sắc, dung lượng và RAM trước khi thêm vào giỏ hàng!');
+      return;
+    }
     addItem(product, selectedVariant);
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
   };
 
   const handleBuyNow = () => {
-    if (!selectedVariant) return;
+    if (!selectedVariant) {
+      alert('Vui lòng chọn đầy đủ màu sắc, dung lượng và RAM trước khi mua!');
+      return;
+    }
     addItem(product, selectedVariant);
     router.push('/cart');
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      alert('Vui lòng đăng nhập để đánh giá sản phẩm!');
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      const { createReview } = await import('@/lib/api');
+      await createReview({
+        productId: product.id,
+        userId: user.id,
+        authorName: user.name || user.email || 'Khách hàng',
+        authorAvatar: `https://i.pravatar.cc/150?u=${user.id}`,
+        rating: reviewForm.rating,
+        comment: reviewForm.body,
+        isApproved: true,
+      });
+      alert('Đánh giá của bạn đã được gửi thành công!');
+      setShowReviewForm(false);
+      setReviewForm({ rating: 5, title: '', body: '' });
+      // Optionally reload the page to fetch the new reviews
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert('Có lỗi xảy ra khi gửi đánh giá.');
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   return (
@@ -134,9 +201,12 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
               {(product.images && product.images.length > 0 ? product.images : [product.thumbnail || '']).map((img, i) => (
                 <button
                   key={i}
-                  onClick={() => setActiveImage(i)}
+                  onClick={() => {
+                    setActiveImage(i);
+                    setOverrideImage(null);
+                  }}
                   className={`flex-shrink-0 w-16 h-16 sm:w-18 sm:h-18 border-2 overflow-hidden transition-all ${
-                    i === activeImage ? 'border-[#0A0A0A]' : 'border-zinc-200 hover:border-zinc-400'
+                    i === activeImage && !overrideImage ? 'border-[#0A0A0A]' : 'border-zinc-200 hover:border-zinc-400'
                   }`}
                 >
                   <img src={img} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
@@ -147,7 +217,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             {/* Main image */}
             <div className="flex-1 relative bg-white border border-zinc-200 aspect-square overflow-hidden group">
               <img
-                src={(product.images && product.images.length > 0 ? product.images[activeImage] : product.thumbnail) || ''}
+                src={overrideImage || (product.images && product.images.length > 0 ? product.images[activeImage] : product.thumbnail) || ''}
                 alt={product.name}
                 className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
               />
@@ -266,6 +336,15 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                       onClick={() => {
                         setSelectedColor(color);
                         setSelectedStorage('');
+                        if (v?.imageUrl && !v.imageUrl.startsWith('#')) {
+                          setOverrideImage(resolveImageUrl(v.imageUrl));
+                        } else {
+                          const colorIdx = colors.indexOf(color);
+                          if (product.images && colorIdx >= 0 && colorIdx < product.images.length) {
+                            setActiveImage(colorIdx);
+                            setOverrideImage(null);
+                          }
+                        }
                       }}
                       className={`relative w-9 h-9 border-2 transition-all ${
                         initColor === color ? 'border-[#0A0A0A] scale-110' : 'border-zinc-300 hover:border-zinc-500'
@@ -294,7 +373,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             )}
 
             {/* Storage selector */}
-            {storagesForColor(initColor).length > 0 && (
+            {storages.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <span className="text-xs font-display font-700 tracking-wider uppercase text-[#0A0A0A]">
@@ -303,13 +382,12 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                 <span className="text-xs text-zinc-500 font-body">{initStorage}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {storagesForColor(initColor).map(storage => {
-                  const v = (product.variants || []).find(x => x.color === initColor && x.storage === storage);
-                  const vPrice = v?.salePrice ?? v?.price;
+                {storages.map(storage => {
+                  const vPrice = product.variants?.find(v => v.storage === storage && (initColor ? v.color === initColor : true))?.price;
                   return (
                     <button
                       key={storage}
-                      onClick={() => setSelectedStorage(storage)}
+                      onClick={() => { setSelectedStorage(storage); setSelectedRam(''); }}
                       className={`px-4 py-2 border text-sm font-display font-600 transition-all ${
                         initStorage === storage
                           ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
@@ -329,15 +407,46 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             </div>
             )}
 
-            {/* RAM info */}
+            {/* RAM selector */}
+            {rams.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-display font-700 tracking-wider uppercase text-[#0A0A0A]">
+                  RAM
+                </span>
+                <span className="text-xs text-zinc-500 font-body">{initRam}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {rams.map(ram => {
+                  const vPrice = product.variants?.find(v => v.ram === ram && (initStorage ? v.storage === initStorage : true) && (initColor ? v.color === initColor : true))?.price;
+                  return (
+                    <button
+                      key={ram}
+                      onClick={() => setSelectedRam(ram)}
+                      className={`px-4 py-2 border text-sm font-display font-600 transition-all ${
+                        initRam === ram
+                          ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
+                          : 'border-zinc-300 text-zinc-700 hover:border-zinc-500'
+                      }`}
+                    >
+                      <span className="font-mono-data">{ram}</span>
+                      {vPrice && (
+                        <span className="ml-1.5 text-[10px] opacity-70">
+                          {fmt(vPrice)}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            )}
+
+            {/* Stock indicator */}
             {selectedVariant && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-500 font-body">RAM:</span>
-                <span className="text-xs font-mono-data bg-zinc-100 px-2 py-0.5 border border-zinc-200">
-                  {selectedVariant.ram}
-                </span>
                 <span className="text-xs text-zinc-400 font-body">
-                  • Còn {selectedVariant.stock} máy
+                  Còn {selectedVariant.stock} máy
                 </span>
               </div>
             )}
@@ -375,15 +484,15 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
               <div className="flex gap-2">
                 <button
                   onClick={handleBuyNow}
-                  disabled={!inStock}
+                  disabled={!selectedVariant || !inStock}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#E8002D] text-white font-display font-700 text-sm tracking-wider uppercase hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Zap size={16} />
-                  Mua ngay
+                  {!selectedVariant ? 'CHỌN CẤU HÌNH' : 'Mua ngay'}
                 </button>
                 <button
                   onClick={handleAddToCart}
-                  disabled={!inStock}
+                  disabled={!selectedVariant || !inStock}
                   className={`flex-1 flex items-center justify-center gap-2 py-3.5 border font-display font-700 text-sm tracking-wider uppercase disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
                     addedToCart
                       ? 'border-green-500 bg-green-500 text-white'
@@ -398,7 +507,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                   ) : (
                     <>
                       <ShoppingCart size={16} />
-                      Thêm vào giỏ
+                      {!selectedVariant ? 'CHỌN CẤU HÌNH' : 'Thêm vào giỏ'}
                     </>
                   )}
                 </button>
@@ -459,32 +568,108 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             </div>
           )}
 
-          {activeTab === 'reviews' && (
+          {activeTab === 'reviews' && (() => {
+            const reviews = product.reviews || [];
+            const reviewCount = reviews.length;
+            const avgRating = reviewCount > 0 
+              ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount).toFixed(1) 
+              : '0.0';
+              
+            const distribution = [5, 4, 3, 2, 1].map(star => {
+              const count = reviews.filter(r => r.rating === star).length;
+              const pct = reviewCount > 0 ? Math.round((count / reviewCount) * 100) : 0;
+              return { star, count, pct };
+            });
+
+            return (
             <div className="mt-4 space-y-4">
               {/* Rating summary */}
               <div className="bg-white border border-zinc-200 p-6 flex items-center gap-8">
-                <div className="text-center">
-                  <p className="font-display font-900 text-5xl text-[#0A0A0A]">{product.rating}</p>
-                  <StarRating rating={product.rating} showCount={false} size={18} />
-                  <p className="text-xs text-zinc-400 font-body mt-1">
-                    {product.reviewCount.toLocaleString('vi-VN')} đánh giá
+                <div className="text-center w-32">
+                  <p className="font-display font-900 text-5xl text-[#0A0A0A]">{avgRating}</p>
+                  <div className="flex justify-center mt-1">
+                    <StarRating rating={Number(avgRating)} showCount={false} size={14} />
+                  </div>
+                  <p className="text-xs text-zinc-500 font-body mt-2">
+                    {reviewCount.toLocaleString('vi-VN')} đánh giá
                   </p>
                 </div>
-                <div className="flex-1 space-y-1.5">
-                  {[5, 4, 3, 2, 1].map(star => {
-                    const pct = star === 5 ? 72 : star === 4 ? 18 : star === 3 ? 6 : star === 2 ? 2 : 2;
-                    return (
-                      <div key={star} className="flex items-center gap-2">
-                        <span className="text-xs font-mono-data text-zinc-500 w-4">{star}</span>
-                        <Star size={11} fill="#F59E0B" strokeWidth={0} className="text-amber-400" />
-                        <div className="flex-1 h-1.5 bg-zinc-100 overflow-hidden">
-                          <div className="h-full bg-amber-400" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-xs font-mono-data text-zinc-400 w-8">{pct}%</span>
+                <div className="flex-1 space-y-2 border-l border-zinc-200 pl-8">
+                  {distribution.map(({ star, pct }) => (
+                    <div key={star} className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 w-8">
+                        <span className="text-xs font-mono-data text-zinc-600">{star}</span>
+                        <Star size={12} fill="#F59E0B" strokeWidth={0} className="text-amber-400" />
                       </div>
-                    );
-                  })}
+                      <div className="flex-1 h-2 bg-zinc-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-mono-data text-zinc-500 w-8 text-right">{pct}%</span>
+                    </div>
+                  ))}
                 </div>
+              </div>
+
+              {/* Write Review Section */}
+              <div className="bg-white border border-zinc-200 p-6 flex flex-col items-center">
+                {!showReviewForm ? (
+                  <button
+                    onClick={() => setShowReviewForm(true)}
+                    className="px-6 py-2.5 bg-[#E8002D] text-white font-display font-700 text-sm uppercase tracking-wider hover:bg-red-700 transition-colors"
+                  >
+                    Viết đánh giá
+                  </button>
+                ) : (
+                  <form onSubmit={handleSubmitReview} className="w-full max-w-2xl space-y-4">
+                    <h3 className="font-display font-700 text-lg text-[#0A0A0A]">Đánh giá sản phẩm này</h3>
+                    <div>
+                      <label className="block text-sm font-display font-700 text-[#0A0A0A] mb-2">Chất lượng sản phẩm</label>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                            className="focus:outline-none p-2 -ml-2 hover:scale-110 transition-transform"
+                          >
+                            <Star 
+                              size={32} 
+                              fill={star <= reviewForm.rating ? "#F59E0B" : "none"} 
+                              className={star <= reviewForm.rating ? "text-amber-400" : "text-zinc-300"} 
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-display font-700 text-[#0A0A0A] mb-2">Nhận xét chi tiết</label>
+                      <textarea
+                        required
+                        value={reviewForm.body}
+                        onChange={(e) => setReviewForm({ ...reviewForm, body: e.target.value })}
+                        className="w-full border border-zinc-200 p-3 text-sm font-body text-[#0A0A0A] focus:outline-none focus:border-[#E8002D]"
+                        rows={4}
+                        placeholder="Mời bạn chia sẻ thêm cảm nhận..."
+                      />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowReviewForm(false)}
+                        className="px-6 py-2.5 border border-zinc-200 text-[#0A0A0A] font-display font-700 text-sm uppercase tracking-wider hover:bg-zinc-50 transition-colors"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submittingReview}
+                        className="px-6 py-2.5 bg-[#E8002D] text-white font-display font-700 text-sm uppercase tracking-wider hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      >
+                        {submittingReview ? 'Đang gửi...' : 'Gửi đánh giá'}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
 
               {/* Review cards */}
@@ -523,7 +708,8 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* ── RELATED PRODUCTS ── */}
