@@ -18,6 +18,8 @@ import {
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
   ResponsiveContainer,
+  BarChart,
+  Bar,
   AreaChart,
   Area,
   PieChart,
@@ -31,21 +33,16 @@ interface SummaryData {
   totalOrders: number;
   totalCustomers: number;
   revenueGrowth: number;
+  productsSold: number;
 }
 
-const COLORS = ['#6366f1', '#3b82f6', '#14b8a6', '#f59e0b', '#ec4899'];
-
-// Mock data for device share (keep this as mock for now unless there's a real API)
-const deviceData = [
-  { name: 'Di động', value: 65 },
-  { name: 'Máy tính', value: 25 },
-  { name: 'Tablet', value: 10 },
-];
+const COLORS = ['#6366f1', '#3b82f6', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6'];
 
 export default function AnalyticsPage() {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState('30 ngày qua');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -58,14 +55,24 @@ export default function AnalyticsPage() {
     setIsLoading(true);
     try {
       // In a real app, you would pass the dateFilter to the API here
-      const [summaryRes, chartRes, topProductsRes] = await Promise.all([
+      const [summaryRes, chartRes, topProductsRes, categoryRes] = await Promise.all([
         api.get('/analytics/summary'),
         api.get('/analytics/revenue-chart'),
-        api.get('/analytics/top-products')
+        api.get('/analytics/top-products'),
+        api.get('/analytics/category-share')
       ]);
       setSummary(summaryRes.data);
       setChartData(chartRes.data);
       setTopProducts(topProductsRes.data);
+      
+      // Calculate percentages for category share
+      const rawCategoryData = categoryRes.data || [];
+      const totalCategoryValue = rawCategoryData.reduce((acc: number, curr: any) => acc + curr.value, 0);
+      const processedCategoryData = rawCategoryData.map((c: any) => ({
+        name: c.name || 'Khác',
+        value: totalCategoryValue > 0 ? Number(((c.value / totalCategoryValue) * 100).toFixed(1)) : 0
+      }));
+      setCategoryData(processedCategoryData);
     } catch (err) {
       console.error('Error fetching analytics:', err);
     } finally {
@@ -225,7 +232,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1 relative z-10">Sản phẩm đã bán</p>
-          <h3 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight relative z-10">1,248</h3>
+          <h3 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight relative z-10">{summary?.productsSold || 0}</h3>
         </div>
       </div>
 
@@ -247,12 +254,12 @@ export default function AnalyticsPage() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                  <linearGradient id="colorRevenueArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
                     <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.2} vertical={false} />
                 <XAxis 
                   dataKey="month" 
                   stroke="#94a3b8" 
@@ -270,6 +277,7 @@ export default function AnalyticsPage() {
                   dx={-10}
                 />
                 <RechartsTooltip 
+                  cursor={{ stroke: 'rgba(148, 163, 184, 0.4)', strokeWidth: 1, strokeDasharray: '3 3' }}
                   contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: '#1e293b', borderRadius: '12px', color: '#fff', backdropFilter: 'blur(8px)' }}
                   itemStyle={{ color: '#818cf8', fontWeight: 600 }}
                   formatter={(value: number) => [formatCurrency(value), 'Doanh thu']}
@@ -280,8 +288,7 @@ export default function AnalyticsPage() {
                   stroke="#6366f1" 
                   strokeWidth={3}
                   fillOpacity={1} 
-                  fill="url(#colorRevenue)" 
-                  activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
+                  fill="url(#colorRevenueArea)" 
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -291,50 +298,56 @@ export default function AnalyticsPage() {
         {/* Device/Category Chart */}
         <div className="bg-white dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-2xl p-6 flex flex-col">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Truy cập theo thiết bị</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Doanh thu theo danh mục</h3>
             <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
               <MoreHorizontal size={20} />
             </button>
           </div>
           
           <div className="flex-1 flex flex-col justify-center items-center">
-            <div className="h-48 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={deviceData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={85}
-                    paddingAngle={5}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {deviceData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: '#1e293b', borderRadius: '12px', color: '#fff' }}
-                    itemStyle={{ color: '#fff' }}
-                    formatter={(value: number) => [`${value}%`, 'Tỷ lệ']}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div className="w-full mt-6 space-y-3 px-2">
-              {deviceData.map((device, index) => (
-                <div key={device.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                    <span className="text-sm text-slate-600 dark:text-slate-300">{device.name}</span>
-                  </div>
-                  <span className="text-sm font-semibold text-slate-900 dark:text-white">{device.value}%</span>
+            {categoryData.length > 0 ? (
+              <>
+                <div className="h-48 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: '#1e293b', borderRadius: '12px', color: '#fff' }}
+                        itemStyle={{ color: '#fff' }}
+                        formatter={(value: number) => [`${value}%`, 'Tỷ lệ']}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                
+                <div className="w-full mt-6 space-y-3 px-2">
+                  {categoryData.map((category, index) => (
+                    <div key={category.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                        <span className="text-sm text-slate-600 dark:text-slate-300">{category.name}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">{category.value}%</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-slate-500 text-sm">Chưa có dữ liệu</div>
+            )}
           </div>
         </div>
       </div>

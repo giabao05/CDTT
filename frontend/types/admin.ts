@@ -7,6 +7,7 @@ export type PaymentMethod = 'COD' | 'VNPay' | 'Momo';
 export interface Product {
   id: string;
   name: string;
+  category: string;
   brand: string;
   image: string;
   price: number;
@@ -23,7 +24,7 @@ export interface Product {
   os: string;
   description: string;
   images: string[];
-  variants?: { color?: string; storage?: string; stock?: number; price?: number, colorCode?: string }[];
+  variants?: { id?: string; color?: string; storage?: string; ram?: string; stock?: number; stockQuantity?: number; price?: number; colorCode?: string; imageUrl?: string; }[];
 }
 
 export interface Order {

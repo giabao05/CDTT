@@ -28,7 +28,7 @@ const statusColors: Record<string, string> = {
 };
 
 const emptyProduct: Omit<Product, 'id'> = {
-  name: '', brand: 'Apple', image: '', images: [], price: 0, salePrice: null,
+  name: '', category: 'Điện thoại', brand: 'Apple', image: '', images: [], price: 0, salePrice: null,
   stock: 0, status: 'In Stock', ram: '', storage: '', color: '',
   chipset: '', screen: '', battery: '', camera: '', os: '', description: '',
 };
@@ -36,7 +36,9 @@ const emptyProduct: Omit<Product, 'id'> = {
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dbCategories, setDbCategories] = useState<{name: string, slug: string}[]>([]);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('Tất cả');
   const [brandFilter, setBrandFilter] = useState('Tất cả');
   const [statusFilter, setStatusFilter] = useState('Tất cả');
   const [showModal, setShowModal] = useState(false);
@@ -57,6 +59,7 @@ export default function ProductsPage() {
           const mapped = data.map((p: any) => ({
             id: p.id.toString(),
             name: p.name,
+            category: p.category?.name || 'Khác',
             brand: p.brand?.name || 'Khác',
             image: p.thumbnail || p.images?.[0]?.imageUrl || '',
             images: p.images?.map((img: any) => img.imageUrl) || [],
@@ -86,19 +89,34 @@ export default function ProductsPage() {
         setLoading(false);
       }
     }
+    
+    async function loadCategories() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/categories`);
+        if (res.ok) {
+          const data = await res.json();
+          setDbCategories(data);
+        }
+      } catch (e) {
+        console.error('Lỗi khi tải danh mục', e);
+      }
+    }
+    
     loadProducts();
+    loadCategories();
   }, []);
 
   const filtered = products.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.brand.toLowerCase().includes(search.toLowerCase());
+    const matchCategory = categoryFilter === 'Tất cả' || p.category === categoryFilter;
     const matchBrand = brandFilter === 'Tất cả' || p.brand === brandFilter;
     const matchStatus = statusFilter === 'Tất cả' || p.status === statusFilter;
-    return matchSearch && matchBrand && matchStatus;
+    return matchSearch && matchCategory && matchBrand && matchStatus;
   });
 
   const openAdd = () => {
     setEditProduct(null);
-    setForm(emptyProduct);
+    setForm({ ...emptyProduct, category: dbCategories[0]?.name || '' });
     setVariants([]);
     setActiveTab('basic');
     setShowModal(true);
@@ -148,7 +166,7 @@ export default function ProductsPage() {
         description: form.description,
         basePrice: form.price,
         thumbnail: form.image,
-        category: 'Điện thoại',
+        category: form.category,
         brand: form.brand,
         isFeatured: false,
         isActive: form.status !== 'Out of Stock',
@@ -185,6 +203,7 @@ export default function ProductsPage() {
             const mapped = data.map((p: any) => ({
               id: p.id.toString(),
               name: p.name,
+              category: p.category?.name || 'Khác',
               brand: p.brand?.name || 'Khác',
               image: p.thumbnail || p.images?.[0]?.imageUrl || '',
               images: p.images?.map((img: any) => img.imageUrl) || [],
@@ -216,6 +235,7 @@ export default function ProductsPage() {
             const mapped = data.map((p: any) => ({
               id: p.id.toString(),
               name: p.name,
+              category: p.category?.name || 'Khác',
               brand: p.brand?.name || 'Khác',
               image: p.thumbnail || p.images?.[0]?.imageUrl || '',
               price: p.basePrice || 0,
@@ -275,6 +295,15 @@ export default function ProductsPage() {
         </div>
 
         <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-lg px-3 py-2.5 text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] focus:outline-none focus:border-[#6366f1]/50"
+        >
+          <option value="Tất cả">Danh mục (Tất cả)</option>
+          {dbCategories.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+        </select>
+
+        <select
           value={brandFilter}
           onChange={(e) => setBrandFilter(e.target.value)}
           className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-lg px-3 py-2.5 text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] focus:outline-none focus:border-[#6366f1]/50"
@@ -325,7 +354,7 @@ export default function ProductsPage() {
             <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200 dark:border-[#1e293b]">
-                {['Sản phẩm', 'Hãng', 'Phân loại', 'Giá bán', 'Tồn kho', 'Trạng thái', 'Hành động'].map((h) => (
+                {['Sản phẩm', 'Danh mục / Hãng', 'Phân loại', 'Giá bán', 'Tồn kho', 'Trạng thái', 'Hành động'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400 dark:text-[#334155] uppercase tracking-wider font-mono whitespace-nowrap">
                     {h}
                   </th>
@@ -347,7 +376,10 @@ export default function ProductsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200 dark:bg-[#1e293b] text-slate-500 dark:text-slate-500 dark:text-[#64748b]">{product.brand}</span>
+                    <div className="flex flex-col items-start gap-1">
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-50 dark:bg-[#6366f1]/10 text-indigo-600 dark:text-[#818cf8] border border-indigo-100 dark:border-[#6366f1]/20">{product.category}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-[#1e293b] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50">{product.brand}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-[#64748b]">{product.ram} / {product.storage}</p>
@@ -476,6 +508,16 @@ export default function ProductsPage() {
                         placeholder="iPhone 15 Pro Max 256GB Titanium"
                         className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-lg px-3 py-2.5 text-[12px] text-slate-900 dark:text-[#f1f5f9] placeholder-[#334155] focus:outline-none focus:border-[#6366f1]/50"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-500 dark:text-[#475569] mb-1.5">Danh mục</label>
+                      <select
+                        value={form.category}
+                        onChange={(e) => update('category', e.target.value)}
+                        className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-lg px-3 py-2.5 text-[12px] text-slate-600 dark:text-[#94a3b8] focus:outline-none focus:border-[#6366f1]/50"
+                      >
+                        {dbCategories.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-500 dark:text-[#475569] mb-1.5">Thương hiệu</label>

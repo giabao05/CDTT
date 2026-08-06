@@ -395,11 +395,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                       }`}
                     >
                       <span className="font-mono-data">{storage}</span>
-                      {vPrice && (
-                        <span className="ml-1.5 text-[10px] opacity-70">
-                          {fmt(vPrice)}
-                        </span>
-                      )}
+
                     </button>
                   );
                 })}
@@ -430,11 +426,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                       }`}
                     >
                       <span className="font-mono-data">{ram}</span>
-                      {vPrice && (
-                        <span className="ml-1.5 text-[10px] opacity-70">
-                          {fmt(vPrice)}
-                        </span>
-                      )}
+
                     </button>
                   );
                 })}

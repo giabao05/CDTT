@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { Plus, Tag, Calendar, Percent, DollarSign, Trash2, X, Check } from 'lucide-react';
-import { vouchers as initialVouchers } from '@/data/adminMockData';
+import { Plus, Tag, Calendar, Percent, DollarSign, Trash2, X, Check, Loader2 } from 'lucide-react';
 import type { Voucher } from '@/types/admin';
+import { API_BASE_URL } from '@/lib/api';
 
 const statusColors: Record<string, string> = {
   Active: 'text-[#34d399] bg-[#10b981]/10 border-[#10b981]/20',
@@ -21,20 +21,88 @@ const emptyForm = {
 };
 
 export default function VouchersPage() {
-  const [vouchers, setVouchers] = useState(initialVouchers);
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const handleCreate = () => {
+  useEffect(() => {
+    fetchVouchers();
+  }, []);
+
+  const fetchVouchers = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/vouchers`);
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((v: any) => {
+          let status: Voucher['status'] = 'Active';
+          const now = new Date();
+          const expiresAt = v.expiresAt ? new Date(v.expiresAt) : null;
+          if (!v.isActive) status = 'Expired';
+          else if (expiresAt && expiresAt < now) status = 'Expired';
+
+          return {
+            id: String(v.id),
+            code: v.code,
+            type: 'percent',
+            value: v.discountPercent || 0,
+            minOrder: 0,
+            remaining: Math.max(0, (v.maxUsage || 0) - (v.currentUsage || 0)),
+            total: v.maxUsage || 0,
+            startDate: '', // Not in DB
+            endDate: expiresAt ? expiresAt.toLocaleDateString('vi-VN') : '',
+            status
+          };
+        });
+        setVouchers(mapped);
+      }
+    } catch (e) {
+      console.error('Failed to load vouchers', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async () => {
     if (!form.code.trim()) return;
-    const newVoucher: Voucher = {
-      ...form,
-      id: `V${String(vouchers.length + 1).padStart(3, '0')}`,
-    };
-    setVouchers((prev) => [newVoucher, ...prev]);
-    setForm(emptyForm);
-    setShowForm(false);
+    
+    try {
+      const payload = {
+        code: form.code,
+        discountPercent: form.value,
+        maxUsage: form.total,
+        currentUsage: form.total - form.remaining,
+        isActive: form.status === 'Active',
+        // expiresAt could be mapped if needed, omitting for simplicity since date picker wasn't strictly bound in emptyForm
+      };
+      
+      const res = await fetch(`${API_BASE_URL}/vouchers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        fetchVouchers();
+        setForm(emptyForm);
+        setShowForm(false);
+      }
+    } catch (e) {
+      console.error('Error creating voucher', e);
+    }
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteId) return;
+    try {
+      await fetch(`${API_BASE_URL}/vouchers/${deleteId}`, { method: 'DELETE' });
+      fetchVouchers();
+      setDeleteId(null);
+    } catch (e) {
+      console.error('Error deleting voucher', e);
+    }
   };
 
   const active = vouchers.filter((v) => v.status === 'Active');
@@ -69,8 +137,13 @@ export default function VouchersPage() {
       </div>
 
       {/* Voucher cards grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {vouchers.map((voucher) => (
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={32} className="animate-spin text-[#6366f1]" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {vouchers.map((voucher) => (
           <div
             key={voucher.id}
             className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-xl overflow-hidden hover:border-slate-300 dark:border-[#334155] transition-colors group"
@@ -151,7 +224,8 @@ export default function VouchersPage() {
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Delete confirm */}
       {deleteId && (
@@ -159,13 +233,18 @@ export default function VouchersPage() {
           <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-2xl p-6 w-full max-w-sm animate-fadeIn">
             <h3 className="text-[15px] font-semibold text-slate-900 dark:text-[#f1f5f9] mb-2">Xóa mã giảm giá?</h3>
             <p className="text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#475569] mb-5">Hành động này không thể hoàn tác.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2 bg-slate-200 dark:bg-[#1e293b] text-[12px] text-slate-500 dark:text-slate-500 dark:text-[#64748b] rounded-lg hover:bg-[#334155]">Hủy</button>
+            <div className="flex justify-end gap-2 p-5 bg-slate-50 dark:bg-[#0d1117] border-t border-slate-200 dark:border-[#1e293b]">
               <button
-                onClick={() => { setVouchers((v) => v.filter((x) => x.id !== deleteId)); setDeleteId(null); }}
-                className="flex-1 py-2 bg-[#ef4444] text-[12px] text-slate-900 dark:text-white rounded-lg hover:bg-[#dc2626]"
+                onClick={() => setDeleteId(null)}
+                className="px-4 py-2 rounded-lg text-[12px] font-medium text-slate-600 dark:text-slate-400 dark:text-[#94a3b8] hover:bg-slate-200 dark:bg-[#1e293b] transition-colors"
               >
-                Xóa
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleDeleteConfirmed}
+                className="px-4 py-2 rounded-lg text-[12px] font-medium text-white bg-[#ef4444] hover:bg-[#dc2626] transition-colors"
+              >
+                Đồng ý xóa
               </button>
             </div>
           </div>

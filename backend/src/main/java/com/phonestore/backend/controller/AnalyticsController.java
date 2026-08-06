@@ -1,6 +1,5 @@
 package com.phonestore.backend.controller;
 
-import com.phonestore.backend.entity.Product;
 import com.phonestore.backend.repository.OrderRepository;
 import com.phonestore.backend.repository.UserRepository;
 import com.phonestore.backend.repository.ProductRepository;
@@ -27,9 +26,6 @@ public class AnalyticsController {
     private UserRepository userRepository;
     
     @Autowired
-    private ProductRepository productRepository;
-    
-    @Autowired
     private OrderItemRepository orderItemRepository;
 
     @GetMapping("/summary")
@@ -43,7 +39,15 @@ public class AnalyticsController {
         summary.put("totalCustomers", userRepository.count());
         summary.put("revenueGrowth", 12.5); // Hardcoded growth for now as it requires complex historical queries
         
+        Long productsSold = orderItemRepository.countTotalProductsSold();
+        summary.put("productsSold", productsSold != null ? productsSold : 0L);
+        
         return summary;
+    }
+
+    @GetMapping("/category-share")
+    public List<Map<String, Object>> getCategoryShare() {
+        return orderItemRepository.getCategoryShareData();
     }
 
     @GetMapping("/revenue-chart")

@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByOrderCode(String orderCode);
     List<Order> findByUserEmailOrderByCreatedAtDesc(String email);
+    List<Order> findAllByOrderByCreatedAtDesc();
     
     @org.springframework.data.jpa.repository.Query("SELECT o.id FROM Order o WHERE o.shippingPhone LIKE CONCAT('%', :query, '%') OR LOWER(o.shippingName) LIKE LOWER(CONCAT('%', :query, '%')) OR o.orderCode LIKE CONCAT('%', :query, '%')")
     List<Long> findOrderIdsBySearchQuery(@org.springframework.data.repository.query.Param("query") String query);

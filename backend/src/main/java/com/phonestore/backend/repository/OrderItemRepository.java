@@ -37,4 +37,18 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
            "GROUP BY b.name " +
            "ORDER BY SUM(oi.totalPrice) DESC")
     java.util.List<java.util.Map<String, Object>> getBrandShareData();
+
+    @Query("SELECT SUM(oi.quantity) FROM OrderItem oi JOIN oi.order o WHERE o.status != 'Cancelled'")
+    Long countTotalProductsSold();
+
+    @Query("SELECT new map(c.name as name, SUM(oi.totalPrice) as value) " +
+           "FROM OrderItem oi " +
+           "JOIN oi.variant v " +
+           "JOIN v.product p " +
+           "JOIN p.category c " +
+           "JOIN oi.order o " +
+           "WHERE o.status != 'Cancelled' " +
+           "GROUP BY c.name " +
+           "ORDER BY SUM(oi.totalPrice) DESC")
+    java.util.List<java.util.Map<String, Object>> getCategoryShareData();
 }
