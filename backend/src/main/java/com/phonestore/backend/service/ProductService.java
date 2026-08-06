@@ -6,6 +6,7 @@ import com.phonestore.backend.repository.BrandRepository;
 import com.phonestore.backend.repository.CategoryRepository;
 import com.phonestore.backend.repository.OrderItemRepository;
 import com.phonestore.backend.repository.ProductRepository;
+import com.phonestore.backend.repository.BannerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,12 +25,18 @@ public class ProductService {
     private final BrandRepository brandRepository;
     private final OrderItemRepository orderItemRepository;
     private final com.phonestore.backend.repository.ProductVariantRepository productVariantRepository;
+    private final BannerRepository bannerRepository;
 
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllActiveProducts() {
         return productRepository.findByIsActiveTrue().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<ProductSummaryResponse> getAllActiveProductsPaginated(org.springframework.data.domain.Pageable pageable) {
+        return productRepository.findByIsActiveTrue(pageable).map(this::mapToSummaryResponse);
     }
 
     @Transactional(readOnly = true)
@@ -55,10 +62,20 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<ProductSummaryResponse> getProductsByCategoryPaginated(String categorySlug, org.springframework.data.domain.Pageable pageable) {
+        return productRepository.findByCategorySlugAndIsActiveTrue(categorySlug, pageable).map(this::mapToSummaryResponse);
+    }
+
+    @Transactional(readOnly = true)
     public List<ProductResponse> getProductsByBrand(String brandSlug) {
         return productRepository.findByBrandSlugAndIsActiveTrue(brandSlug).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<ProductSummaryResponse> getProductsByBrandPaginated(String brandSlug, org.springframework.data.domain.Pageable pageable) {
+        return productRepository.findByBrandSlugAndIsActiveTrue(brandSlug, pageable).map(this::mapToSummaryResponse);
     }
 
     @Transactional(readOnly = true)
@@ -161,6 +178,8 @@ public class ProductService {
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Product not found"));
+
+        String oldSlug = product.getSlug();
 
         if (request.getName() != null) {
             product.setName(request.getName());
@@ -290,6 +309,18 @@ public class ProductService {
         }
 
         Product savedProduct = productRepository.save(product);
+
+        // Auto update associated banners
+        if (oldSlug != null) {
+            String oldLink = "/product/" + oldSlug;
+            List<com.phonestore.backend.entity.Banner> banners = bannerRepository.findByLinkUrl(oldLink);
+            for (com.phonestore.backend.entity.Banner b : banners) {
+                b.setTitle(savedProduct.getName());
+                b.setLinkUrl("/product/" + savedProduct.getSlug());
+                bannerRepository.save(b);
+            }
+        }
+
         return mapToResponse(savedProduct);
     }
 
@@ -388,6 +419,56 @@ public class ProductService {
                 .brand(brandResp)
                 .specification(specResp)
                 .images(imgResps)
+                .variants(varResps)
+                .build();
+    }
+
+    private ProductSummaryResponse mapToSummaryResponse(Product p) {
+        CategoryResponse catResp = null;
+        if (p.getCategory() != null) {
+            catResp = CategoryResponse.builder()
+                    .id(p.getCategory().getId())
+                    .name(p.getCategory().getName())
+                    .slug(p.getCategory().getSlug())
+                    .build();
+        }
+
+        BrandResponse brandResp = null;
+        if (p.getBrand() != null) {
+            brandResp = BrandResponse.builder()
+                    .id(p.getBrand().getId())
+                    .name(p.getBrand().getName())
+                    .slug(p.getBrand().getSlug())
+                    .logoUrl(p.getBrand().getLogoUrl())
+                    .build();
+        }
+
+        List<ProductVariantResponse> varResps = Collections.emptyList();
+        if (p.getVariants() != null) {
+            varResps = p.getVariants().stream().map(v -> ProductVariantResponse.builder()
+                    .id(v.getId())
+                    .sku(v.getSku())
+                    .color(v.getColor())
+                    .storage(v.getStorage())
+                    .ram(v.getRam())
+                    .price(v.getPrice())
+                    .stockQuantity(v.getStockQuantity())
+                    .imageUrl(v.getImageUrl())
+                    .isActive(v.getIsActive())
+                    .build()).collect(Collectors.toList());
+        }
+
+        return ProductSummaryResponse.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .slug(p.getSlug())
+                .basePrice(p.getBasePrice())
+                .thumbnail(p.getThumbnail())
+                .isFeatured(p.getIsFeatured())
+                .isActive(p.getIsActive())
+                .createdAt(p.getCreatedAt())
+                .category(catResp)
+                .brand(brandResp)
                 .variants(varResps)
                 .build();
     }

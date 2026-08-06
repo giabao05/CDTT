@@ -98,8 +98,8 @@ function CatalogContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchProducts().then(data => {
-      setProducts(data);
+    fetchProducts(undefined, undefined, 0, 100).then(data => {
+      setProducts(data.products);
       setLoading(false);
     });
   }, []);

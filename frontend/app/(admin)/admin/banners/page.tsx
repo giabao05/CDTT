@@ -28,7 +28,7 @@ export default function BannersPage() {
     title: '',
     imageUrl: '',
     linkUrl: '',
-    sortOrder: 0,
+    sortOrder: 1,
     isActive: true
   });
 
@@ -40,10 +40,10 @@ export default function BannersPage() {
     try {
       const [bannersRes, productsRes] = await Promise.all([
         api.get('/banners'),
-        api.get('/products')
+        api.get('/products?size=1000')
       ]);
       setBanners(bannersRes.data);
-      setProducts(productsRes.data);
+      setProducts(productsRes.data.content || []);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -61,8 +61,9 @@ export default function BannersPage() {
       }
       setIsModalOpen(false);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving banner:', err);
+      alert(err.response?.data?.error || err.message || 'Có lỗi xảy ra khi lưu banner.');
     }
   };
 
@@ -78,7 +79,8 @@ export default function BannersPage() {
 
   const openAdd = () => {
     setEditBanner(null);
-    setForm({ title: '', description: '', imageUrl: '', linkUrl: '', sortOrder: 0, isActive: true });
+    const nextOrder = banners.length > 0 ? Math.max(...banners.map(b => b.sortOrder || 0)) + 1 : 1;
+    setForm({ title: '', description: '', imageUrl: '', linkUrl: '', sortOrder: nextOrder, isActive: true });
     setIsModalOpen(true);
   };
 

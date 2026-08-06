@@ -52,11 +52,11 @@ export default function ProductsPage() {
   useEffect(() => {
     async function loadProducts() {
       try {
-        const res = await fetch(`${API_BASE_URL}/products`);
+        const res = await fetch(`${API_BASE_URL}/products?size=1000`);
         if (res.ok) {
           const data = await res.json();
           // Map backend ProductResponse to admin Product type
-          const mapped = data.map((p: any) => ({
+          const mapped = data.content.map((p: any) => ({
             id: p.id.toString(),
             name: p.name,
             category: p.category?.name || 'Khác',
@@ -197,10 +197,10 @@ export default function ProductsPage() {
         const updatedProd = await updateProduct(editProduct.id, payload);
         if (updatedProd) {
           // Re-fetch products to get updated list from server
-          const res = await fetch(`${API_BASE_URL}/products`);
+          const res = await fetch(`${API_BASE_URL}/products?size=1000`);
           if (res.ok) {
             const data = await res.json();
-            const mapped = data.map((p: any) => ({
+            const mapped = (data.content || []).map((p: any) => ({
               id: p.id.toString(),
               name: p.name,
               category: p.category?.name || 'Khác',
@@ -229,10 +229,10 @@ export default function ProductsPage() {
         const newProd = await createProduct(payload);
         if (newProd) {
           // Re-fetch products to get updated list from server
-          const res = await fetch(`${API_BASE_URL}/products`);
+          const res = await fetch(`${API_BASE_URL}/products?size=1000`);
           if (res.ok) {
             const data = await res.json();
-            const mapped = data.map((p: any) => ({
+            const mapped = (data.content || []).map((p: any) => ({
               id: p.id.toString(),
               name: p.name,
               category: p.category?.name || 'Khác',

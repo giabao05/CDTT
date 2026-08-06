@@ -54,8 +54,10 @@ export default function WarrantyPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [ir, pr, wr] = await Promise.all([api.get('/imeis'), api.get('/products'), api.get('/warranty')]);
-      setImeis(ir.data); setProducts(pr.data); setWarranties(wr.data);
+      const [ir, pr, wr] = await Promise.all([api.get('/imeis'), api.get('/products?size=1000'), api.get('/warranty')]);
+      setImeis(ir.data);
+      setProducts(pr.data.content || []);
+      setWarranties(wr.data);
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
   }, []);
 

@@ -14,17 +14,71 @@ export default function ProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{show: boolean; type: 'success' | 'error'; message: string}>({ show: false, type: 'success', message: '' });
 
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
   useEffect(() => {
     const userStr = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
         setUser(u);
         setName(u.name || '');
         setPhone(u.phone || '');
+        // Sync fresh data from backend
+        if (u?.id && token) {
+          fetch(`http://localhost:8080/api/v1/users/${u.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }).then(res => res.ok ? res.json() : null)
+            .then(fresh => {
+              if (fresh) {
+                const updated = { ...u, ...fresh };
+                setUser(updated);
+                setName(updated.name || '');
+                setPhone(updated.phone || '');
+                localStorage.setItem('user', JSON.stringify(updated));
+              }
+            }).catch(() => {});
+        }
       } catch (e) {}
     }
   }, []);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    const token = localStorage.getItem('token');
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await fetch('http://localhost:8080/api/v1/upload', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!uploadRes.ok) throw new Error('Upload failed');
+      const { url } = await uploadRes.json();
+      if (url) {
+        const updateRes = await fetch(`http://localhost:8080/api/v1/users/${user.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ avatar: url }),
+        });
+        if (updateRes.ok) {
+          const updated = { ...user, avatar: url };
+          setUser(updated);
+          localStorage.setItem('user', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+          showToast('success', 'Cập nhật ảnh đại diện thành công!');
+        }
+      }
+    } catch (err) {
+      showToast('error', 'Upload ảnh thất bại!');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ show: true, type, message });
@@ -78,13 +132,22 @@ export default function ProfilePage() {
         <div className="h-40 bg-gradient-to-br from-[#6366f1] via-[#8b5cf6] to-[#d946ef] relative overflow-hidden">
           <div className="absolute inset-0 bg-black/10"></div>
           <div className="absolute -bottom-16 left-6 sm:left-10 z-10">
-            <div className="relative group">
-              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white dark:border-[#0d1117] bg-white dark:bg-[#111827] flex items-center justify-center text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] uppercase shadow-lg shadow-black/10">
-                {user?.name?.charAt(0) || 'A'}
+              <div className="relative group">
+              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white dark:border-[#0d1117] bg-white dark:bg-[#111827] flex items-center justify-center text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] uppercase shadow-lg shadow-black/10 overflow-hidden">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user?.name || 'Avatar'} className="w-full h-full object-cover" />
+                ) : (
+                  user?.name?.charAt(0) || 'A'
+                )}
               </div>
-              <button className="absolute bottom-1 right-1 p-2 bg-slate-900/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-lg backdrop-blur-sm">
-                <Camera size={16} />
-              </button>
+              <label className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                {isUploadingAvatar ? (
+                  <Loader2 size={24} className="text-white animate-spin" />
+                ) : (
+                  <Camera size={20} className="text-white" />
+                )}
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploadingAvatar} />
+              </label>
             </div>
           </div>
         </div>

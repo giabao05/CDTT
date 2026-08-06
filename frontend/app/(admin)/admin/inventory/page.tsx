@@ -22,8 +22,8 @@ export default function InventoryPage() {
 
   const fetchInventory = async () => {
     try {
-      const res = await api.get('/products');
-      const products: Product[] = res.data;
+      const res = await api.get('/products?size=1000');
+      const products: Product[] = res.data.content || [];
       
       const allVariants: InventoryItem[] = [];
       products.forEach(p => {

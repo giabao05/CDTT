@@ -2,7 +2,6 @@ package com.phonestore.backend.controller;
 
 import com.phonestore.backend.repository.OrderRepository;
 import com.phonestore.backend.repository.UserRepository;
-import com.phonestore.backend.repository.ProductRepository;
 import com.phonestore.backend.repository.OrderItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;

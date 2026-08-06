@@ -38,8 +38,8 @@ export default function HomePage() {
         ]);
         setFeatured(featData);
         setBanners(bannersData.filter((b: any) => b.isActive).sort((a: any, b: any) => a.sortOrder - b.sortOrder));
-        setNewProducts(allData.slice(0, 8)); // Just grab the latest 8 as new
-        setAllProducts(allData);
+        setNewProducts(allData.products.slice(0, 8)); // Just grab the latest 8 as new
+        setAllProducts(allData.products);
         setArticles(articlesData.filter((a: any) => a.isPublished).slice(0, 3)); // 3 latest articles
         setBrands(brandsData);
       } catch (e) {

@@ -26,6 +26,8 @@ public class User implements UserDetails {
     
     private String name;
     
+    private String avatar;
+    
     @Column(unique = true, nullable = false)
     private String email;
     

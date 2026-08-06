@@ -72,12 +72,21 @@ function mapProduct(backendData: any): Product {
   };
 }
 
-export async function fetchProducts(category?: string, brand?: string): Promise<Product[]> {
+export async function fetchProducts(
+  category?: string, 
+  brand?: string,
+  page: number = 0,
+  size: number = 10,
+  sort: string = 'createdAt,desc'
+): Promise<{ products: Product[], totalPages: number, totalElements: number }> {
   try {
     let url = `${API_BASE_URL}/products`;
     const params = new URLSearchParams();
     if (category) params.append('category', category);
     if (brand) params.append('brand', brand);
+    params.append('page', page.toString());
+    params.append('size', size.toString());
+    params.append('sort', sort);
     
     if (params.toString()) {
       url += `?${params.toString()}`;
@@ -86,10 +95,14 @@ export async function fetchProducts(category?: string, brand?: string): Promise<
     const res = await fetch(url);
     if (!res.ok) throw new Error('Failed to fetch products');
     const data = await res.json();
-    return data.map(mapProduct);
+    return {
+      products: data.content.map(mapProduct),
+      totalPages: data.totalPages,
+      totalElements: data.totalElements
+    };
   } catch (error) {
     console.error('Error fetching products:', error);
-    return [];
+    return { products: [], totalPages: 0, totalElements: 0 };
   }
 }
 
@@ -237,6 +250,8 @@ export async function fetchOrders(): Promise<any[]> {
   }
 }
 
+
+
 export async function fetchBanners(): Promise<any[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/banners`);
@@ -250,10 +265,12 @@ export async function fetchBanners(): Promise<any[]> {
 
 export async function updateUserProfile(id: number | string, data: any): Promise<any> {
   try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const res = await fetch(`${API_BASE_URL}/users/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(data),
     });
@@ -387,3 +404,48 @@ export async function markNotificationAsRead(id: number): Promise<boolean> {
     return false;
   }
 }
+
+export async function changeUserPassword(id: string | number, data: any): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/users/${id}/password`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Lỗi cập nhật mật khẩu');
+  }
+}
+
+export async function deleteUserAccount(id: string | number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/users/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error('Lỗi xóa tài khoản');
+  }
+}
+
+export async function uploadFile(file: File): Promise<string | null> {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const res = await fetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    
+    if (!res.ok) throw new Error('Upload failed');
+    const data = await res.json();
+    return data.url;
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    return null;
+  }
+}
+

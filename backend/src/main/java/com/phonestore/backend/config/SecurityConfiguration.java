@@ -50,6 +50,8 @@ public class SecurityConfiguration {
                     "/api/v1/users/**", "/api/v1/users",
                     "/api/v1/analytics/**",
                     "/api/v1/settings/**",
+                    "/api/v1/upload", "/api/v1/upload/**",
+                    "/uploads/**",
                     "/error"
                 ).permitAll()
                 .anyRequest().authenticated()

@@ -21,10 +21,22 @@ public class BannerService {
     }
 
     public Banner create(Banner banner) {
+        if (banner.getSortOrder() != null && banner.getSortOrder() < 1) {
+            throw new IllegalArgumentException("Thứ tự xuất hiện phải bắt đầu từ số 1.");
+        }
+        if (banner.getSortOrder() != null && repository.existsBySortOrder(banner.getSortOrder())) {
+            throw new IllegalArgumentException("Thứ tự xuất hiện " + banner.getSortOrder() + " đã tồn tại. Không được phép trùng.");
+        }
         return repository.save(banner);
     }
 
     public Banner update(Long id, Banner banner) {
+        if (banner.getSortOrder() != null && banner.getSortOrder() < 1) {
+            throw new IllegalArgumentException("Thứ tự xuất hiện phải bắt đầu từ số 1.");
+        }
+        if (banner.getSortOrder() != null && repository.existsBySortOrderAndIdNot(banner.getSortOrder(), id)) {
+            throw new IllegalArgumentException("Thứ tự xuất hiện " + banner.getSortOrder() + " đã tồn tại. Không được phép trùng.");
+        }
         banner.setId(id);
         return repository.save(banner);
     }

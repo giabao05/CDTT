@@ -39,11 +39,27 @@ export default function Header() {
       document.documentElement.classList.remove('dark');
     }
     
-    // Load user from localStorage
+    // Load user from localStorage then sync from backend
     const userStr = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
     if (userStr) {
       try {
-        setUser(JSON.parse(userStr));
+        const parsed = JSON.parse(userStr);
+        setUser(parsed);
+        // Sync fresh data from backend (avatar, etc.)
+        if (parsed?.id && token) {
+          fetch(`http://localhost:8080/api/v1/users/${parsed.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }).then(res => {
+            if (res.ok) return res.json();
+          }).then(freshUser => {
+            if (freshUser) {
+              const updated = { ...parsed, ...freshUser };
+              setUser(updated);
+              localStorage.setItem('user', JSON.stringify(updated));
+            }
+          }).catch(() => {});
+        }
       } catch (e) {}
     }
   }, []);
@@ -203,8 +219,12 @@ export default function Header() {
             }}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-200 dark:bg-[#1e293b] transition-colors"
           >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-[11px] font-bold text-slate-900 dark:text-white uppercase">
-              {user?.name?.charAt(0) || 'A'}
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-[11px] font-bold text-white uppercase overflow-hidden">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Admin" className="w-full h-full object-cover" />
+              ) : (
+                user?.name?.charAt(0) || 'A'
+              )}
             </div>
             <div className="hidden md:block text-left">
               <p className="text-[11px] font-semibold text-slate-900 dark:text-[#f1f5f9] leading-none">{user?.name || 'Admin'}</p>

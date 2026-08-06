@@ -19,22 +19,30 @@ public class BannerController {
     }
 
     @GetMapping("/{id}")
-    public Banner getById(@PathVariable Long id) {
+    public Banner getById(@PathVariable("id") Long id) {
         return service.getById(id);
     }
 
     @PostMapping
-    public Banner create(@RequestBody Banner banner) {
-        return service.create(banner);
+    public org.springframework.http.ResponseEntity<?> create(@RequestBody Banner banner) {
+        try {
+            return org.springframework.http.ResponseEntity.ok(service.create(banner));
+        } catch (IllegalArgumentException e) {
+            return org.springframework.http.ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
-    public Banner update(@PathVariable Long id, @RequestBody Banner banner) {
-        return service.update(id, banner);
+    public org.springframework.http.ResponseEntity<?> update(@PathVariable("id") Long id, @RequestBody Banner banner) {
+        try {
+            return org.springframework.http.ResponseEntity.ok(service.update(id, banner));
+        } catch (IllegalArgumentException e) {
+            return org.springframework.http.ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        }
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
+    public void delete(@PathVariable("id") Long id) {
         service.delete(id);
     }
 }

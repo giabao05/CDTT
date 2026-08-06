@@ -36,6 +36,7 @@ public class UserService {
         if (updateDetails.getName() != null) user.setName(updateDetails.getName());
         if (updateDetails.getPhone() != null) user.setPhone(updateDetails.getPhone());
         if (updateDetails.getAddress() != null) user.setAddress(updateDetails.getAddress());
+        if (updateDetails.getAvatar() != null) user.setAvatar(updateDetails.getAvatar());
         return repository.save(user);
     }
     

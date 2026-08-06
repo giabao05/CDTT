@@ -41,7 +41,7 @@ export default function ProductDetailPage() {
       setProduct(p);
       if (p && p.brand) {
          const related = await fetchProducts(undefined, p.brand);
-         setRelatedProducts(related.filter(r => r.id !== p.id).slice(0, 4));
+         setRelatedProducts(related.products.filter(r => r.id !== p.id).slice(0, 4));
       }
       setLoading(false);
     }

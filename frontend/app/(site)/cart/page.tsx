@@ -258,7 +258,7 @@ export default function CartPage() {
                       className="flex-1 border border-zinc-300 text-xs font-mono-data px-3 py-2 focus:outline-none focus:border-zinc-500 uppercase placeholder:normal-case placeholder:font-body"
                     />
                     <button
-                      onClick={handleApplyCoupon}
+                      onClick={() => handleApplyCoupon()}
                       className="px-3 py-2 bg-[#0A0A0A] text-white text-xs font-display font-700 tracking-wider uppercase hover:bg-zinc-700 transition-colors"
                     >
                       <Tag size={13} />

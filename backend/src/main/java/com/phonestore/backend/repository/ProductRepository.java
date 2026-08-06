@@ -17,6 +17,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByCategorySlugAndIsActiveTrue(String categorySlug);
     List<Product> findByBrandSlugAndIsActiveTrue(String brandSlug);
     
+    // Pagination support
+    org.springframework.data.domain.Page<Product> findByIsActiveTrue(Pageable pageable);
+    org.springframework.data.domain.Page<Product> findByCategorySlugAndIsActiveTrue(String categorySlug, Pageable pageable);
+    org.springframework.data.domain.Page<Product> findByBrandSlugAndIsActiveTrue(String brandSlug, Pageable pageable);
+    
     @Query("SELECT p FROM OrderItem oi JOIN oi.variant v JOIN v.product p JOIN oi.order o " +
            "WHERE o.status != 'Cancelled' " +
            "AND p.isActive = true " +

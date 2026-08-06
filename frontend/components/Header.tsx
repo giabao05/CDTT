@@ -62,13 +62,13 @@ export default function Header() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (user && user.email) {
-      // Initial fetch
-      fetchUserNotifications(user.email).then(data => setNotifications(data));
+      // Initial fetch - silent on error
+      fetchUserNotifications(user.email).then(data => { if (data) setNotifications(data); }).catch(() => {});
       
-      // Poll for new notifications every 5 seconds
+      // Poll for new notifications every 30 seconds (reduced to avoid spam)
       interval = setInterval(() => {
-        fetchUserNotifications(user.email).then(data => setNotifications(data));
-      }, 5000);
+        fetchUserNotifications(user.email).then(data => { if (data) setNotifications(data); }).catch(() => {});
+      }, 30000);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -317,7 +317,11 @@ export default function Header() {
             )}
 
             <Link href={user ? "/profile" : "/login"} className="hidden sm:flex items-center gap-2 px-3 py-2 text-zinc-300 hover:text-white transition-colors">
-              <User size={18} />
+              {user?.avatar ? (
+                <img src={user.avatar} alt="User" className="w-5 h-5 rounded-full object-cover border border-zinc-700" />
+              ) : (
+                <User size={18} />
+              )}
               <span className="text-xs font-display font-600 tracking-wide hidden lg:block">
                 {user ? 'Hồ sơ' : 'Đăng nhập'}
               </span>

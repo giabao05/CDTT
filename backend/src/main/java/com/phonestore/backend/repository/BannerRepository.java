@@ -6,4 +6,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BannerRepository extends JpaRepository<Banner, Long> {
+    java.util.List<Banner> findByLinkUrl(String linkUrl);
+    boolean existsBySortOrder(Integer sortOrder);
+    boolean existsBySortOrderAndIdNot(Integer sortOrder, Long id);
 }
