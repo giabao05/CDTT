@@ -1,8 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, Plus, Minus, ShoppingCart, Tag, X, ArrowRight, Truck } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
+import { fetchVouchers } from '@/lib/api';
 
 function fmt(n: number) {
   return n.toLocaleString('vi-VN') + ' ₫';
@@ -17,12 +18,24 @@ export default function CartPage() {
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
+  const [vouchers, setVouchers] = useState<any[]>([]);
 
-  const handleApplyCoupon = () => {
-    if (!couponInput.trim()) return;
-    const valid = applyCoupon(couponInput);
-    if (valid) {
-      setCouponSuccess(`Áp dụng thành công mã "${couponInput.toUpperCase()}"!`);
+  useEffect(() => {
+    fetchVouchers().then(data => {
+      if (data) {
+        setVouchers(data.filter((v: any) => v.isActive !== false));
+      }
+    });
+  }, []);
+
+  const handleApplyCoupon = (codeToApply = couponInput) => {
+    if (!codeToApply.trim()) return;
+    const upperCode = codeToApply.toUpperCase();
+    const found = vouchers.find(v => v.code.toUpperCase() === upperCode);
+    
+    if (found) {
+      applyCoupon(upperCode, found.discountPercent / 100);
+      setCouponSuccess(`Áp dụng thành công mã "${upperCode}"!`);
       setCouponError('');
     } else {
       setCouponError('Mã giảm giá không hợp lệ hoặc đã hết hạn.');
@@ -253,28 +266,22 @@ export default function CartPage() {
                     
                     {/* Coupon Dropdown */}
                     <div id="coupon-dropdown" className="absolute top-full left-0 w-full bg-white border border-zinc-200 shadow-lg mt-1 z-10 hidden">
-                      <div className="flex flex-col">
-                        {[
-                          { code: 'PHONE10', text: 'Giảm 10%' },
-                          { code: 'SALE20', text: 'Giảm 20%' },
-                          { code: 'NEWUSER', text: 'Giảm 5% cho bạn mới' }
-                        ].map((c) => (
+                      <div className="flex flex-col max-h-48 overflow-y-auto">
+                        {vouchers.length > 0 ? vouchers.map((c) => (
                           <button
                             key={c.code}
                             onClick={() => {
                               setCouponInput(c.code);
-                              const valid = applyCoupon(c.code);
-                              if (valid) {
-                                setCouponSuccess(`Áp dụng thành công mã "${c.code}"!`);
-                                setCouponError('');
-                              }
+                              handleApplyCoupon(c.code);
                             }}
                             className="px-3 py-2 text-left hover:bg-zinc-50 border-b border-zinc-100 last:border-0 flex justify-between items-center"
                           >
                             <span className="font-mono-data font-700 text-xs text-zinc-800">{c.code}</span>
-                            <span className="text-[10px] text-green-600 font-500">{c.text}</span>
+                            <span className="text-[10px] text-green-600 font-500">Giảm {c.discountPercent}%</span>
                           </button>
-                        ))}
+                        )) : (
+                          <div className="px-3 py-2 text-left text-[11px] text-zinc-500">Không có mã giảm giá nào.</div>
+                        )}
                       </div>
                     </div>
                   </div>

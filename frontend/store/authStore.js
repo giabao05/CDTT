@@ -26,4 +26,10 @@ export const useAuthStore = create((set) => ({
       }
     }
   },
+  updateUser: (updatedUser) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+    set({ user: updatedUser });
+  },
 }));

@@ -248,6 +248,36 @@ export async function fetchBanners(): Promise<any[]> {
   }
 }
 
+export async function updateUserProfile(id: number | string, data: any): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/users/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update user profile');
+    }
+    return await res.json();
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    throw error;
+  }
+}
+
+export async function fetchVouchers(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/vouchers`);
+    if (!res.ok) throw new Error("Failed to fetch vouchers");
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching vouchers:", error);
+    return [];
+  }
+}
+
 export async function fetchArticles(): Promise<any[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/articles`);

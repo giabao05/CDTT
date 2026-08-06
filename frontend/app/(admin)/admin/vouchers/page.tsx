@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Tag, Calendar, Percent, DollarSign, Trash2, X, Check, Loader2 } from 'lucide-react';
 import type { Voucher } from '@/types/admin';
 import { API_BASE_URL } from '@/lib/api';
@@ -75,7 +75,7 @@ export default function VouchersPage() {
         maxUsage: form.total,
         currentUsage: form.total - form.remaining,
         isActive: form.status === 'Active',
-        // expiresAt could be mapped if needed, omitting for simplicity since date picker wasn't strictly bound in emptyForm
+        expiresAt: form.endDate ? `${form.endDate}T23:59:59` : null,
       };
       
       const res = await fetch(`${API_BASE_URL}/vouchers`, {

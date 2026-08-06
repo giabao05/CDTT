@@ -126,7 +126,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
       alert('Vui lòng chọn đầy đủ màu sắc, dung lượng và RAM trước khi thêm vào giỏ hàng!');
       return;
     }
-    addItem(product, selectedVariant);
+    addItem(product, selectedVariant, qty);
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
   };
@@ -136,7 +136,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
       alert('Vui lòng chọn đầy đủ màu sắc, dung lượng và RAM trước khi mua!');
       return;
     }
-    addItem(product, selectedVariant);
+    addItem(product, selectedVariant, qty);
     router.push('/cart');
   };
 

@@ -3,11 +3,11 @@ import { useAuthStore } from '../../../store/authStore';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, Package, MapPin, LogOut, ShieldCheck, Heart, Clock, Settings, CreditCard, ChevronRight, Eye, Plus, Edit2, Trash2 } from 'lucide-react';
-import { fetchUserOrders, fetchUserFavorites } from '../../../lib/api';
+import { fetchUserOrders, fetchUserFavorites, updateUserProfile } from '../../../lib/api';
 import Link from 'next/link';
 
 export default function ProfilePage() {
-  const { user, logout, initAuth } = useAuthStore();
+  const { user, logout, initAuth, updateUser } = useAuthStore();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('account'); // 'account', 'orders', 'favorites', 'address', 'settings'
@@ -17,6 +17,11 @@ export default function ProfilePage() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [addressForm, setAddressForm] = useState({ id: 0, name: '', phone: '', street: '', city: '', isDefault: false });
+
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({ name: '', phone: '', dob: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
 
   // Function to save addresses and sync to localStorage
   const saveAddresses = (newAddresses: any[]) => {
@@ -32,14 +37,25 @@ export default function ProfilePage() {
     if (saved) {
       try {
         setAddresses(JSON.parse(saved));
-      } catch(e) {}
+      } catch (e) { }
     } else {
-      const defaultAddresses = [
-        { id: 1, name: user?.name || 'Nguyễn Văn A', phone: '0901 234 567', street: '123 Đường Số 1, Phường Tân Phú, Quận 7', city: 'Thành phố Hồ Chí Minh, Việt Nam', isDefault: true },
-        { id: 2, name: user?.name || 'Nguyễn Văn A', phone: '0987 654 321', street: 'Tòa nhà Bitexco, Số 2 Hải Triều, Phường Bến Nghé, Quận 1', city: 'Thành phố Hồ Chí Minh, Việt Nam', isDefault: false }
-      ];
-      setAddresses(defaultAddresses);
-      localStorage.setItem('user_addresses', JSON.stringify(defaultAddresses));
+      // Use real user data if available instead of hardcoded data
+      if (user?.address || user?.phone) {
+        const defaultAddresses = [
+          { 
+            id: 1, 
+            name: user.username || user.name || user.email || 'Người dùng', 
+            phone: user.phone || '', 
+            street: user.address || '', 
+            city: '', 
+            isDefault: true 
+          }
+        ];
+        setAddresses(defaultAddresses);
+        localStorage.setItem('user_addresses', JSON.stringify(defaultAddresses));
+      } else {
+        setAddresses([]);
+      }
     }
     
     setMounted(true);
@@ -56,6 +72,13 @@ export default function ProfilePage() {
         setFavorites(favData);
       }).finally(() => {
         setLoadingData(false);
+      });
+      
+      // Initialize profile form
+      setProfileForm({
+        name: user.name || user.username || '',
+        phone: user.phone || '',
+        dob: localStorage.getItem(`dob_${user.email}`) || ''
       });
     }
   }, [user]);
@@ -79,7 +102,102 @@ export default function ProfilePage() {
     router.push('/');
   };
 
+  const handleSaveProfile = async () => {
+    if (!user || !user.id) return;
+    setIsSavingProfile(true);
+    setProfileMessage({ type: '', text: '' });
+    try {
+      if (profileForm.dob) {
+         localStorage.setItem(`dob_${user.email}`, profileForm.dob);
+      }
+      const updatedData = {
+        name: profileForm.name,
+        phone: profileForm.phone
+      };
+      const res = await updateUserProfile(user.id, updatedData);
+      updateUser({ ...user, ...res });
+      setProfileMessage({ type: 'success', text: 'Cập nhật thông tin thành công!' });
+      setTimeout(() => setProfileMessage({ type: '', text: '' }), 3000);
+    } catch (e) {
+      setProfileMessage({ type: 'error', text: 'Có lỗi xảy ra khi cập nhật.' });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const renderContent = () => {
+    const totalAccumulated = orders
+      .filter(o => {
+        const s = (o.status || '').toLowerCase();
+        return !s.includes('cancel') && !s.includes('hủy');
+      })
+      .reduce((sum, o) => sum + (Number(o.total) || Number(o.totalAmount) || 0), 0);
+      
+    const formattedAccumulated = new Intl.NumberFormat('vi-VN').format(totalAccumulated) + ' ₫';
+    
+    let joinedDate = 'Hôm nay';
+    
+    const parseAnyDateToString = (d: any): string | null => {
+      if (!d) return null;
+      if (typeof d === 'string') {
+        if (d.includes('Invalid Date')) return null;
+        // Nếu đã có dạng dd/mm/yyyy thì lấy luôn
+        if (d.includes('/')) return d.split(' ')[0];
+        
+        // Handle common custom formats like "dd-MM-yyyy" or "HH:mm dd-MM-yyyy"
+        if (d.includes('-') && d.split('-').length === 3) {
+           const datePart = d.split(' ').pop(); // gets "dd-MM-yyyy"
+           if (datePart && datePart.includes('-')) {
+             const parts = datePart.split('-');
+             // if it's DD-MM-YYYY
+             if (parts[0].length <= 2) {
+                return `${parts[0]}/${parts[1]}/${parts[2]}`;
+             }
+           }
+        }
+        
+        const dateObj = new Date(d);
+        if (!isNaN(dateObj.getTime())) {
+           const res = dateObj.toLocaleDateString('vi-VN');
+           return res !== 'Invalid Date' ? res : null;
+        }
+      }
+      if (d instanceof Date && !isNaN(d.getTime())) {
+          const res = d.toLocaleDateString('vi-VN');
+          return res !== 'Invalid Date' ? res : null;
+      }
+      if (typeof d === 'number') {
+          const res = new Date(d).toLocaleDateString('vi-VN');
+          return res !== 'Invalid Date' ? res : null;
+      }
+      return null;
+    };
+
+    const userJoinDateStr = parseAnyDateToString(user?.createdAt);
+    if (userJoinDateStr) {
+      joinedDate = userJoinDateStr;
+    } else if (orders && orders.length > 0) {
+      const validOrders = orders.filter((o: any) => o.createdAt || o.date);
+      if (validOrders.length > 0) {
+        const parseToMs = (d: any) => {
+          if (!d) return Date.now();
+          if (typeof d === 'string' && d.includes('/')) {
+            const parts = d.split(' ')[0].split('/');
+            if (parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+          }
+          if (typeof d === 'string' && d.includes('-') && d.split('-')[0].length <= 2) {
+             const parts = d.split(' ').pop()!.split('-');
+             if (parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+          }
+          const ms = new Date(d).getTime();
+          return isNaN(ms) ? Date.now() : ms;
+        };
+        const oldestOrder = [...validOrders].sort((a, b) => parseToMs(a.createdAt || a.date) - parseToMs(b.createdAt || b.date))[0];
+        const oldestStr = parseAnyDateToString(oldestOrder.createdAt || oldestOrder.date);
+        if (oldestStr) joinedDate = oldestStr;
+      }
+    }
+
     switch (activeTab) {
       case 'orders':
         return (
@@ -397,7 +515,8 @@ export default function ProfilePage() {
           </div>
         );
       case 'account':
-      default:
+      default: {
+
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -416,7 +535,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-zinc-500 text-xs font-600 uppercase">Tích luỹ</p>
-                  <p className="text-2xl font-900 text-zinc-900">0 ₫</p>
+                  <p className="text-2xl font-900 text-zinc-900">{formattedAccumulated}</p>
                 </div>
               </div>
               <div className="bg-white border border-zinc-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
@@ -425,7 +544,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-zinc-500 text-xs font-600 uppercase">Đã tham gia</p>
-                  <p className="text-2xl font-900 text-zinc-900">Hôm nay</p>
+                  <p className="text-2xl font-900 text-zinc-900">{joinedDate}</p>
                 </div>
               </div>
             </div>
@@ -434,6 +553,12 @@ export default function ProfilePage() {
               <h2 className="text-xl font-700 text-zinc-900 mb-6 border-b border-zinc-100 pb-4">Cập nhật thông tin chi tiết</h2>
               
               <div className="space-y-6 max-w-2xl">
+                {profileMessage.text && (
+                  <div className={`p-4 rounded-lg text-sm font-600 ${profileMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {profileMessage.text}
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm text-zinc-700 mb-2 font-600">Tên đăng nhập</label>
@@ -449,24 +574,29 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm text-zinc-700 mb-2 font-600">Họ và tên</label>
-                    <input type="text" placeholder="Nhập họ và tên đầy đủ..." defaultValue={user.username || ''} className="w-full bg-white border border-zinc-300 text-zinc-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E8002D]/20 focus:border-[#E8002D] transition-all font-500" />
+                    <input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} placeholder="Nhập họ và tên đầy đủ..." className="w-full bg-white border border-zinc-300 text-zinc-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E8002D]/20 focus:border-[#E8002D] transition-all font-500" />
                   </div>
                   <div>
                     <label className="block text-sm text-zinc-700 mb-2 font-600">Số điện thoại</label>
-                    <input type="text" placeholder="Nhập số điện thoại liên hệ..." className="w-full bg-white border border-zinc-300 text-zinc-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E8002D]/20 focus:border-[#E8002D] transition-all font-500" />
+                    <input type="text" value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} placeholder="Nhập số điện thoại liên hệ..." className="w-full bg-white border border-zinc-300 text-zinc-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E8002D]/20 focus:border-[#E8002D] transition-all font-500" />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm text-zinc-700 mb-2 font-600">Ngày sinh</label>
-                  <input type="date" className="w-full md:w-1/2 bg-white border border-zinc-300 text-zinc-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E8002D]/20 focus:border-[#E8002D] transition-all font-500" />
+                  <input type="date" value={profileForm.dob} onChange={e => setProfileForm({...profileForm, dob: e.target.value})} className="w-full md:w-1/2 bg-white border border-zinc-300 text-zinc-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#E8002D]/20 focus:border-[#E8002D] transition-all font-500" />
                 </div>
                 
                 <div className="pt-6 border-t border-zinc-100 mt-8 flex gap-4">
-                  <button type="button" className="bg-[#E8002D] text-white px-8 py-3 rounded-lg font-600 shadow-sm shadow-red-500/30 hover:bg-red-700 hover:shadow-red-500/50 transition-all text-sm uppercase tracking-wide">
-                    Lưu thay đổi
+                  <button 
+                    type="button" 
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile}
+                    className="bg-[#E8002D] text-white px-8 py-3 rounded-lg font-600 shadow-sm shadow-red-500/30 hover:bg-red-700 hover:shadow-red-500/50 disabled:opacity-70 transition-all text-sm uppercase tracking-wide flex items-center justify-center min-w-[140px]"
+                  >
+                    {isSavingProfile ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Lưu thay đổi'}
                   </button>
-                  <button type="button" className="bg-zinc-100 text-zinc-700 px-8 py-3 rounded-lg font-600 hover:bg-zinc-200 transition-all text-sm">
+                  <button type="button" onClick={() => setProfileForm({ name: user.name || user.username || '', phone: user.phone || '', dob: localStorage.getItem(`dob_${user.email}`) || '' })} className="bg-zinc-100 text-zinc-700 px-8 py-3 rounded-lg font-600 hover:bg-zinc-200 transition-all text-sm">
                     Hủy
                   </button>
                 </div>
@@ -474,6 +604,7 @@ export default function ProfilePage() {
             </div>
           </div>
         );
+      }
     }
   };
 

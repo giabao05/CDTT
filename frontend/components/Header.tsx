@@ -2,14 +2,14 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Search, ShoppingCart, User, Menu, X, ChevronDown,
-  Phone, Smartphone, Apple, Cpu, Bell, Shield
+  Phone, Smartphone, Apple, Cpu, Bell, Shield, CheckCheck
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuthStore } from '../store/authStore';
 import type { Brand } from '../types';
 import { products } from '../data/products';
 import Link from 'next/link';
-import { fetchUserNotifications, markNotificationAsRead } from '../lib/api';
+import { fetchUserNotifications, markNotificationAsRead, fetchVouchers } from '../lib/api';
 import { useRouter, usePathname } from 'next/navigation';
 import { useFavoriteStore } from '../store/favoriteStore';
 
@@ -60,13 +60,42 @@ export default function Header() {
   }, [initAuth]);
 
   useEffect(() => {
+    let interval: NodeJS.Timeout;
     if (user && user.email) {
+      // Initial fetch
       fetchUserNotifications(user.email).then(data => setNotifications(data));
+      
+      // Poll for new notifications every 5 seconds
+      interval = setInterval(() => {
+        fetchUserNotifications(user.email).then(data => setNotifications(data));
+      }, 5000);
     }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [user]);
 
   const { initFavorites, clearFavorites } = useFavoriteStore();
   
+  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [currentVoucherIndex, setCurrentVoucherIndex] = useState(0);
+
+  useEffect(() => {
+    fetchVouchers().then(data => {
+      if (data && data.length > 0) {
+        setVouchers(data.filter((v: any) => v.isActive !== false));
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (vouchers.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentVoucherIndex(prev => (prev + 1) % vouchers.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [vouchers]);
+
   useEffect(() => {
     if (user && user.email) {
       initFavorites(user.email);
@@ -80,6 +109,20 @@ export default function Header() {
     setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
+  const handleReadAllNotifs = async () => {
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+    
+    // Optimistic UI update
+    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    
+    try {
+      await Promise.all(unreadIds.map(id => markNotificationAsRead(id)));
+    } catch (e) {
+      console.error('Lỗi khi đánh dấu đã đọc:', e);
+    }
+  };
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const isActive = (path: string) => pathname === path;
@@ -88,11 +131,25 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-[#0A0A0A] border-b border-zinc-800">
-      <div className="bg-[#E8002D] text-white text-xs font-display font-600 tracking-wider text-center py-1.5 px-4">
-        <span className="flex items-center justify-center gap-2">
-          <Bell size={11} />
-          Miễn phí vận chuyển đơn hàng từ 5.000.000 ₫ — Mã: PHONE10 giảm thêm 10%
-        </span>
+      <div className="bg-[#E8002D] text-white text-xs font-display font-600 tracking-wider text-center py-1.5 px-4 overflow-hidden relative h-7">
+        <div 
+          className="absolute inset-x-0 top-0 flex flex-col transition-transform duration-500 ease-in-out" 
+          style={{ transform: `translateY(-${currentVoucherIndex * 28}px)` }}
+        >
+          {vouchers.length > 0 ? (
+            vouchers.map((v, i) => (
+              <span key={i} className="flex items-center justify-center gap-2 h-7 flex-shrink-0">
+                <Bell size={11} />
+                Ưu đãi: Giảm {v.discountPercent}% cho đơn hàng — Nhập mã: {v.code}
+              </span>
+            ))
+          ) : (
+            <span className="flex items-center justify-center gap-2 h-7 flex-shrink-0">
+              <Bell size={11} />
+              Miễn phí vận chuyển đơn hàng từ 5.000.000 ₫ — Mã: PHONE10 giảm thêm 10%
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -216,7 +273,18 @@ export default function Header() {
                   <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-zinc-200 shadow-xl rounded-xl z-50 overflow-hidden">
                     <div className="p-3 border-b border-zinc-100 bg-zinc-50 flex justify-between items-center">
                       <span className="font-700 text-zinc-900 text-sm">Thông báo</span>
-                      <span className="text-xs bg-[#E8002D] text-white px-2 py-0.5 rounded-full">{unreadCount} mới</span>
+                      <div className="flex items-center gap-3">
+                        {unreadCount > 0 && (
+                          <button 
+                            onClick={handleReadAllNotifs}
+                            className="text-xs text-blue-600 font-600 hover:text-blue-800 transition-colors flex items-center gap-1"
+                            title="Đánh dấu đã đọc tất cả"
+                          >
+                            <CheckCheck size={14} /> Đã đọc hết
+                          </button>
+                        )}
+                        <span className="text-xs bg-[#E8002D] text-white px-2 py-0.5 rounded-full">{unreadCount} mới</span>
+                      </div>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notifications.length === 0 ? (
