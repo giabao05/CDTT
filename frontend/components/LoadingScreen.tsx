@@ -56,14 +56,9 @@ export default function LoadingScreen() {
       </div>
 
       {/* Text Area */}
-      <div className="flex flex-col items-center gap-3">
-        <h2 className="text-2xl md:text-3xl font-display font-900 tracking-wider text-[#0A0A0A] flex items-center gap-2 mt-2">
-          Đợi xíu nha
-          <span className="flex">
-            <span className="animate-[bounce_1s_infinite] inline-block text-[#E8002D] delay-75">.</span>
-            <span className="animate-[bounce_1s_infinite] inline-block text-[#E8002D]" style={{ animationDelay: '0.15s' }}>.</span>
-            <span className="animate-[bounce_1s_infinite] inline-block text-[#E8002D]" style={{ animationDelay: '0.3s' }}>.</span>
-          </span>
+      <div className="flex flex-col items-center gap-3 mt-4">
+        <h2 className="text-2xl md:text-3xl font-display font-900 tracking-wider text-[#0A0A0A] flex items-center gap-2">
+          Đợi xíu nha...
         </h2>
       </div>
       
