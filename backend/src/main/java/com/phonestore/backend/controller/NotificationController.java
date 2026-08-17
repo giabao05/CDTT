@@ -17,12 +17,18 @@ public class NotificationController {
     private final NotificationRepository notificationRepository;
 
     @GetMapping("/{email}")
-    public ResponseEntity<List<Notification>> getUserNotifications(@PathVariable String email) {
+    public ResponseEntity<List<Notification>> getUserNotifications(@PathVariable("email") String email) {
         return ResponseEntity.ok(notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email));
     }
 
+    @PostMapping
+    public ResponseEntity<Notification> createNotification(@RequestBody Notification notification) {
+        notification.setRead(false);
+        return ResponseEntity.ok(notificationRepository.save(notification));
+    }
+
     @PutMapping("/{id}/read")
-    public ResponseEntity<?> markAsRead(@PathVariable Long id) {
+    public ResponseEntity<?> markAsRead(@PathVariable("id") Long id) {
         notificationRepository.findById(id).ifPresent(notification -> {
             notification.setRead(true);
             notificationRepository.save(notification);

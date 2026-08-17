@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Bell, Sun, Moon, ChevronDown, Store, Settings } from 'lucide-react';
+import { Search, Bell, Sun, Moon, ChevronDown, Store, Settings, Package, ShoppingCart, Tag, AlertTriangle, Shield, Info, Clock, CheckCheck, UserPlus, Star, MessageSquare } from 'lucide-react';
 import api from '@/utils/api';
 
 const pageTitles: Record<string, string> = {
@@ -108,6 +108,26 @@ export default function Header() {
     }
   };
 
+  const handleNotificationClick = async (notif: any) => {
+    if (!notif.read) {
+      await handleMarkAsRead(notif.id);
+    }
+    setShowNotifications(false);
+    
+    const titleLower = notif.title.toLowerCase();
+    if (titleLower.includes('đơn hàng')) {
+      router.push('/admin/orders');
+    } else if (titleLower.includes('khách hàng')) {
+      router.push('/admin/customers');
+    } else if (titleLower.includes('đánh giá')) {
+      router.push('/admin/products');
+    } else if (titleLower.includes('khuyến mãi') || titleLower.includes('giảm giá')) {
+      router.push('/admin/vouchers');
+    } else if (titleLower.includes('liên hệ')) {
+      router.push('/admin/contacts');
+    }
+  };
+
   const markAllAsRead = async () => {
     const unread = notifications.filter(n => !n.read);
     for (const n of unread) {
@@ -167,26 +187,90 @@ export default function Header() {
           </button>
           
           {showNotifications && (
-            <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#1e293b] rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-fadeIn">
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-[#1e293b] flex justify-between items-center">
-                <p className="text-[13px] font-semibold text-slate-900 dark:text-[#f1f5f9]">Thông báo mới</p>
-                <span className="text-[10px] text-[#6366f1] cursor-pointer hover:underline" onClick={markAllAsRead}>Đánh dấu đã đọc</span>
+            <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 bg-white/90 dark:bg-[#111827]/90 backdrop-blur-xl border border-slate-200/50 dark:border-[#1e293b]/50 rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden z-50 animate-fadeIn transform origin-top-right transition-all">
+              <div className="px-4 py-4 border-b border-slate-100 dark:border-[#1e293b] flex justify-between items-center bg-white/50 dark:bg-[#111827]/50 relative z-10">
+                <div className="flex items-center gap-2">
+                  <Bell size={18} className="text-[#6366f1]" />
+                  <p className="text-[14px] font-bold text-slate-900 dark:text-[#f1f5f9]">Thông báo mới</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={markAllAsRead}
+                      className="text-[11px] text-[#6366f1] font-semibold hover:text-[#4f46e5] transition-colors flex items-center gap-1 bg-[#6366f1]/10 px-2 py-1 rounded-md"
+                    >
+                      <CheckCheck size={14} /> Đánh dấu đã đọc
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
                 {notifications.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500">Không có thông báo nào</div>
-                ) : notifications.map(notif => (
-                  <div key={notif.id} onClick={() => !notif.read && handleMarkAsRead(notif.id)} className={`p-3 border-b border-slate-200 dark:border-[#1e293b] hover:bg-slate-200 dark:bg-[#1e293b]/50 cursor-pointer transition-colors ${!notif.read ? 'bg-slate-200 dark:bg-[#1e293b]/20' : ''}`}>
-                    <div className="flex justify-between items-start mb-1">
-                      <p className={`text-[12px] ${!notif.read ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>{notif.title}</p>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-500 dark:text-[#64748b]">{new Date(notif.createdAt).toLocaleDateString('vi-VN')}</span>
+                  <div className="p-8 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-3">
+                    <div className="w-12 h-12 bg-slate-50 dark:bg-[#1e293b] rounded-full flex items-center justify-center border border-slate-100 dark:border-slate-800 shadow-inner">
+                      <Bell size={24} className="text-slate-300 dark:text-slate-600" />
                     </div>
-                    <p className="text-[11px] text-slate-600 dark:text-[#94a3b8]">{notif.message}</p>
+                    <span className="text-sm font-medium">Không có thông báo nào.</span>
                   </div>
-                ))}
+                ) : notifications.map(notif => {
+                  let Icon = Info;
+                  let iconColor = 'text-blue-500 dark:text-blue-400';
+                  let iconBg = 'bg-blue-50 dark:bg-blue-500/10';
+                  let iconBorder = 'border-blue-100 dark:border-blue-500/20';
+                  
+                  const titleLower = notif.title.toLowerCase();
+                  if (titleLower.includes('đơn hàng')) {
+                    Icon = Package; iconColor = 'text-green-600 dark:text-green-400'; iconBg = 'bg-green-50 dark:bg-green-500/10'; iconBorder = 'border-green-100 dark:border-green-500/20';
+                  } else if (titleLower.includes('khách hàng')) {
+                    Icon = UserPlus; iconColor = 'text-indigo-600 dark:text-indigo-400'; iconBg = 'bg-indigo-50 dark:bg-indigo-500/10'; iconBorder = 'border-indigo-100 dark:border-indigo-500/20';
+                  } else if (titleLower.includes('đánh giá')) {
+                    Icon = Star; iconColor = 'text-yellow-500 dark:text-yellow-400'; iconBg = 'bg-yellow-50 dark:bg-yellow-500/10'; iconBorder = 'border-yellow-100 dark:border-yellow-500/20';
+                  } else if (titleLower.includes('liên hệ')) {
+                    Icon = MessageSquare; iconColor = 'text-cyan-500 dark:text-cyan-400'; iconBg = 'bg-cyan-50 dark:bg-cyan-500/10'; iconBorder = 'border-cyan-100 dark:border-cyan-500/20';
+                  } else if (titleLower.includes('giỏ hàng')) {
+                    Icon = ShoppingCart; iconColor = 'text-[#E8002D] dark:text-[#ff4444]'; iconBg = 'bg-[#E8002D]/10 dark:bg-[#ff4444]/10'; iconBorder = 'border-[#E8002D]/20 dark:border-[#ff4444]/20';
+                  } else if (titleLower.includes('khuyến mãi') || titleLower.includes('giảm giá')) {
+                    Icon = Tag; iconColor = 'text-orange-500 dark:text-orange-400'; iconBg = 'bg-orange-50 dark:bg-orange-500/10'; iconBorder = 'border-orange-100 dark:border-orange-500/20';
+                  } else if (titleLower.includes('cảnh báo')) {
+                    Icon = AlertTriangle; iconColor = 'text-red-500 dark:text-red-400'; iconBg = 'bg-red-50 dark:bg-red-500/10'; iconBorder = 'border-red-100 dark:border-red-500/20';
+                  } else if (titleLower.includes('bảo mật') || titleLower.includes('mật khẩu')) {
+                    Icon = Shield; iconColor = 'text-purple-500 dark:text-purple-400'; iconBg = 'bg-purple-50 dark:bg-purple-500/10'; iconBorder = 'border-purple-100 dark:border-purple-500/20';
+                  }
+
+                  return (
+                    <div 
+                      key={notif.id} 
+                      onClick={() => handleNotificationClick(notif)} 
+                      className={`p-4 border-b border-slate-100/50 dark:border-[#1e293b]/50 cursor-pointer transition-all duration-300 hover:bg-slate-50 dark:hover:bg-[#1e293b]/50 flex gap-3 relative overflow-hidden ${!notif.read ? 'bg-[#6366f1]/5 dark:bg-[#6366f1]/10' : 'bg-transparent opacity-70 hover:opacity-100'}`}
+                    >
+                      {!notif.read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#6366f1]" />}
+                      
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border ${iconBg} ${iconColor} ${iconBorder} shadow-sm`}>
+                        <Icon size={18} />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-1 gap-2">
+                          <h4 className={`text-[13px] leading-tight truncate ${!notif.read ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
+                            {notif.title}
+                          </h4>
+                        </div>
+                        <p className="text-[12px] text-slate-500 dark:text-[#94a3b8] leading-relaxed line-clamp-2">
+                          {notif.message}
+                        </p>
+                        {notif.createdAt && (
+                          <div className="flex items-center gap-1 mt-2 text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                            <Clock size={10} />
+                            <span>{new Date(notif.createdAt).toLocaleDateString('vi-VN')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="px-4 py-2 border-t border-slate-200 dark:border-[#1e293b] text-center">
-                <Link href="/admin/orders" className="text-[11px] text-[#6366f1] hover:underline" onClick={() => setShowNotifications(false)}>
+              <div className="px-4 py-3 border-t border-slate-100 dark:border-[#1e293b] text-center bg-slate-50 dark:bg-[#111827]">
+                <Link href="/admin/orders" className="text-[12px] font-medium text-[#6366f1] hover:text-[#4f46e5] hover:underline transition-colors" onClick={() => setShowNotifications(false)}>
                   Xem tất cả hoạt động
                 </Link>
               </div>

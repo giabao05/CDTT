@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { fetchVouchers } from '../../../lib/api';
+import LoadingScreen from '@/components/LoadingScreen';
 
 export default function PromotionsPage() {
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
     fetchVouchers().then((data) => {
@@ -15,17 +17,17 @@ export default function PromotionsPage() {
     });
   }, []);
 
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 min-h-screen">
       <h1 className="text-3xl font-display font-900 text-zinc-900 mb-8 tracking-tight">
         KHUYẾN <span className="text-[#E8002D]">MÃI</span>
       </h1>
       
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-10 h-10 border-4 border-[#E8002D] border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      ) : vouchers.length === 0 ? (
+      {vouchers.length === 0 ? (
         <div className="text-center py-20 text-zinc-500 bg-white rounded-xl border border-zinc-200">
           Hiện tại chưa có chương trình khuyến mãi nào.
         </div>
@@ -50,25 +52,40 @@ export default function PromotionsPage() {
             };
             
             return (
-              <div key={voucher.id || index} className="bg-white border border-zinc-200 p-6 rounded-xl shadow-sm flex flex-col md:flex-row gap-8 items-center hover:shadow-md hover:border-zinc-300 transition-all group overflow-hidden relative">
-                <div className={`w-full md:w-64 h-40 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center flex-shrink-0 relative overflow-hidden shadow-inner`}>
-                  <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors"></div>
-                  <span className="text-white font-900 text-3xl tracking-tighter drop-shadow-md px-4 text-center">
+              <div key={voucher.id || index} className="bg-white border border-zinc-100 p-6 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.03)] flex flex-col md:flex-row gap-8 items-center hover:shadow-[0_20px_50px_rgba(0,0,0,0.06)] transition-all duration-300 group overflow-hidden relative">
+                <div className={`w-full md:w-72 h-48 bg-gradient-to-br ${gradient} rounded-[1.5rem] flex flex-col items-center justify-center flex-shrink-0 relative overflow-hidden shadow-inner group-hover:scale-[1.02] transition-transform duration-500`}>
+                  {/* Decorative shine effect */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 translate-y-[100%] group-hover:-translate-y-[100%] transition-transform duration-1000" />
+                  <span className="text-white/80 text-xs font-display font-800 tracking-widest uppercase mb-2">Mã Giảm Giá</span>
+                  <span className="text-white font-900 text-4xl tracking-tight drop-shadow-md px-4 text-center">
                     {voucher.code}
                   </span>
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-800 text-zinc-900 mb-2">Giảm {voucher.discountPercent}% cho đơn hàng</h2>
-                  <p className="text-zinc-600 mb-4 leading-relaxed">
+                <div className="flex-1 py-2">
+                  <h2 className="text-[28px] font-display font-900 text-[#0A0A0A] mb-3 leading-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-red-500 group-hover:to-orange-500 transition-all">
+                    Giảm {voucher.discountPercent}% cho đơn hàng
+                  </h2>
+                  <p className="text-zinc-500 mb-6 leading-relaxed font-body text-[15px]">
                     Sử dụng mã <strong>{voucher.code}</strong> tại bước thanh toán để nhận ngay ưu đãi giảm {voucher.discountPercent}% trên tổng giá trị đơn hàng. 
                     {voucher.maxUsage ? ` Số lượng giới hạn: ${voucher.maxUsage} lượt sử dụng.` : ''}
                   </p>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs font-700 text-[#E8002D] bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <span className="text-[11px] font-display font-800 tracking-wider text-[#ff0000] bg-red-50 rounded-full px-4 py-2 border border-red-100 uppercase">
                       {formatDate(voucher.expiresAt)}
                     </span>
-                    <button className="text-sm font-600 text-zinc-600 hover:text-[#E8002D] transition-colors underline underline-offset-4">
-                      Sao chép mã
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(voucher.code);
+                        setCopiedCode(voucher.code);
+                        setTimeout(() => setCopiedCode(null), 2000);
+                      }}
+                      className={`text-xs font-display font-800 tracking-wider transition-colors uppercase px-4 py-2 rounded-full border ${
+                        copiedCode === voucher.code
+                          ? 'bg-green-50 text-green-600 border-green-200'
+                          : 'text-zinc-600 hover:text-[#0A0A0A] bg-zinc-50 hover:bg-zinc-100 border-zinc-200'
+                      }`}
+                    >
+                      {copiedCode === voucher.code ? 'Đã sao chép!' : 'Sao chép mã'}
                     </button>
                   </div>
                 </div>

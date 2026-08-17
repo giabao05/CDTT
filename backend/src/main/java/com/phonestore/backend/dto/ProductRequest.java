@@ -16,6 +16,7 @@ public class ProductRequest {
     private String name;
     private String description;
     private BigDecimal basePrice;
+    private BigDecimal salePrice;
     private String thumbnail;
     private String category; // category name or slug
     private String brand;    // brand name or slug

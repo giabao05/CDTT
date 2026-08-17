@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ProductSpecificationRequest {
     private String screenSize;
+    private String ram;
+    private String storage;
     private String os;
     private String processor;
     private String mainCamera;

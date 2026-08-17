@@ -30,6 +30,7 @@ public class Product {
     private String description;
     
     private BigDecimal basePrice;
+    private BigDecimal salePrice;
     
     @Column(columnDefinition = "MEDIUMTEXT")
     private String thumbnail;
@@ -44,6 +45,12 @@ public class Product {
     
     private Boolean isFeatured;
     private Boolean isActive;
+    
+    @org.hibernate.annotations.Formula("(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.product_id = id)")
+    private Double rating;
+
+    @org.hibernate.annotations.Formula("(SELECT COUNT(r.id) FROM reviews r WHERE r.product_id = id)")
+    private Integer reviewCount;
     
     @CreationTimestamp
     private LocalDateTime createdAt;

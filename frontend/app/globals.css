@@ -10,6 +10,21 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --animate-wiggle: wiggle 0.3s ease-in-out infinite;
+}
+
+@keyframes shake-tilt {
+  0%, 100% { rotate: -5deg; }
+  50% { rotate: 5deg; }
+}
+
+@keyframes gentle-shake {
+  0%, 100% { rotate: -6deg; }
+  50% { rotate: 6deg; }
+}
+
+.hover-shake-tilt:hover {
+  animation: shake-tilt 0.3s ease-in-out infinite;
 }
 
 @media (prefers-color-scheme: dark) {

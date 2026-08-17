@@ -18,6 +18,7 @@ public class ProductSummaryResponse {
     private String name;
     private String slug;
     private BigDecimal basePrice;
+    private BigDecimal salePrice;
     private String thumbnail;
     
     private CategoryResponse category;
@@ -26,7 +27,14 @@ public class ProductSummaryResponse {
     private Boolean isFeatured;
     private Boolean isActive;
     
+    private Double rating;
+    private Integer reviewCount;
+    
     private LocalDateTime createdAt;
+    
+    private String description;
+    private ProductSpecificationResponse specification;
+    private List<ProductImageResponse> images;
     
     private List<ProductVariantResponse> variants;
 }

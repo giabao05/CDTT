@@ -14,6 +14,7 @@ import com.phonestore.backend.repository.UserRepository;
 import com.phonestore.backend.repository.NotificationRepository;
 import com.phonestore.backend.entity.User;
 import com.phonestore.backend.entity.Notification;
+import com.phonestore.backend.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class OrderService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final com.phonestore.backend.repository.ImeiTrackingRepository imeiTrackingRepository;
+    private final EmailService emailService;
 
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
@@ -84,6 +86,15 @@ public class OrderService {
                     .message("Đơn hàng " + orderCode + " của bạn đã được đặt thành công. Chúng tôi sẽ sớm liên hệ để xác nhận.")
                     .build();
             notificationRepository.save(userNotif);
+            
+            // Gửi email xác nhận đơn hàng
+            boolean shouldSendEmail = true;
+            if (order.getUser() != null) {
+                shouldSendEmail = order.getUser().isEmailNotifEnabled();
+            }
+            if (shouldSendEmail) {
+                emailService.sendOrderConfirmationEmail(order, request.getEmail());
+            }
         }
         
         // Tạo thông báo cho ADMIN

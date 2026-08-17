@@ -3,8 +3,9 @@ import { useAuthStore } from '../../../store/authStore';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, Package, MapPin, LogOut, ShieldCheck, Heart, Clock, Settings, CreditCard, ChevronRight, Eye, Plus, Edit2, Trash2, Crown, Star, TrendingUp, Camera } from 'lucide-react';
-import { fetchUserOrders, fetchUserFavorites, updateUserProfile, changeUserPassword, deleteUserAccount, uploadFile } from '../../../lib/api';
+import { fetchUserOrders, fetchUserFavorites, updateUserProfile, changeUserPassword, deleteUserAccount, uploadFile, updateUserSettings } from '../../../lib/api';
 import Link from 'next/link';
+import LoadingScreen from '@/components/LoadingScreen';
 
 export default function ProfilePage() {
   const { user, logout, initAuth, updateUser } = useAuthStore();
@@ -20,8 +21,7 @@ export default function ProfilePage() {
   
   const [settings, setSettings] = useState({
     emailNotif: true,
-    promoNotif: false,
-    twoFactor: false
+    promoNotif: false
   });
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   
@@ -32,11 +32,22 @@ export default function ProfilePage() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  const updateSetting = (key: keyof typeof settings) => {
+  const updateSetting = async (key: keyof typeof settings) => {
     const newSettings = { ...settings, [key]: !settings[key] };
     setSettings(newSettings);
-    if (user?.email) {
-      localStorage.setItem(`settings_${user.email}`, JSON.stringify(newSettings));
+    
+    if (user?.id) {
+      try {
+        const updatedUser = await updateUserSettings(user.id, {
+          emailNotifEnabled: newSettings.emailNotif,
+          promoNotifEnabled: newSettings.promoNotif
+        });
+        updateUser(updatedUser);
+        showToast('Đã lưu cài đặt');
+      } catch (e) {
+        showToast('Lỗi khi lưu cài đặt');
+        setSettings(settings);
+      }
     }
   };
 
@@ -44,6 +55,10 @@ export default function ProfilePage() {
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', dob: '' });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
+  
+  // Birthday Gift state
+  const [giftClaimedThisYear, setGiftClaimedThisYear] = useState(false);
+  const [showVoucherCode, setShowVoucherCode] = useState(false);
 
   // Password & Account State
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -94,7 +109,9 @@ export default function ProfilePage() {
   // Function to save addresses and sync to localStorage
   const saveAddresses = (newAddresses: any[]) => {
     setAddresses(newAddresses);
-    localStorage.setItem('user_addresses', JSON.stringify(newAddresses));
+    if (user && user.email) {
+      localStorage.setItem(`user_addresses_${user.email}`, JSON.stringify(newAddresses));
+    }
   };
 
   useEffect(() => {
@@ -120,31 +137,6 @@ export default function ProfilePage() {
       }
     };
     syncUser();
-    // Load addresses from local storage
-    const saved = localStorage.getItem('user_addresses');
-    if (saved) {
-      try {
-        setAddresses(JSON.parse(saved));
-      } catch (e) { }
-    } else {
-      // Use real user data if available instead of hardcoded data
-      if (user?.address || user?.phone) {
-        const defaultAddresses = [
-          { 
-            id: 1, 
-            name: user.username || user.name || user.email || 'Người dùng', 
-            phone: user.phone || '', 
-            street: user.address || '', 
-            city: '', 
-            isDefault: true 
-          }
-        ];
-        setAddresses(defaultAddresses);
-        localStorage.setItem('user_addresses', JSON.stringify(defaultAddresses));
-      } else {
-        setAddresses([]);
-      }
-    }
     
     setMounted(true);
   }, [initAuth]);
@@ -169,9 +161,61 @@ export default function ProfilePage() {
         dob: localStorage.getItem(`dob_${user.email}`) || ''
       });
       
-      const savedSettings = localStorage.getItem(`settings_${user.email}`);
-      if (savedSettings) {
-        try { setSettings(JSON.parse(savedSettings)); } catch(e) {}
+      const claimedYear = localStorage.getItem(`birthday_gift_claimed_year_${user.email}`);
+      if (claimedYear === new Date().getFullYear().toString()) {
+        setGiftClaimedThisYear(true);
+      } else {
+        setGiftClaimedThisYear(false);
+      }
+      setShowVoucherCode(false);
+      
+      setSettings({
+        emailNotif: user.emailNotifEnabled ?? true,
+        promoNotif: user.promoNotifEnabled ?? false
+      });
+
+      // Load addresses for specific user
+      const saved = localStorage.getItem(`user_addresses_${user.email}`);
+      if (saved) {
+        try {
+          let parsedAddresses = JSON.parse(saved);
+          let modified = false;
+          parsedAddresses = parsedAddresses.map((a: any) => {
+             if (a.isDefault) {
+                let newName = a.name;
+                if (!a.name || a.name === user.email || a.name === user.username) {
+                   newName = user.name || a.name;
+                   modified = true;
+                }
+                if (newName !== a.name) {
+                   modified = true;
+                   return { ...a, name: newName };
+                }
+             }
+             return a;
+          });
+          setAddresses(parsedAddresses);
+          if (modified) {
+            localStorage.setItem(`user_addresses_${user.email}`, JSON.stringify(parsedAddresses));
+          }
+        } catch (e) { }
+      } else {
+        if (user.address || user.phone || user.name) {
+          const defaultAddresses = [
+            { 
+              id: 1, 
+              name: user.name || user.username || user.email || 'Người dùng', 
+              phone: user.phone || '', 
+              street: user.address || '', 
+              city: '', 
+              isDefault: true 
+            }
+          ];
+          setAddresses(defaultAddresses);
+          localStorage.setItem(`user_addresses_${user.email}`, JSON.stringify(defaultAddresses));
+        } else {
+          setAddresses([]);
+        }
       }
     }
   }, [user]);
@@ -231,6 +275,28 @@ export default function ProfilePage() {
       };
       const res = await updateUserProfile(user.id, updatedData);
       updateUser({ ...user, ...res });
+      
+      // Auto-update default address in address book
+      let currentAddresses = [...addresses];
+      const defaultIndex = currentAddresses.findIndex(a => a.isDefault);
+      if (defaultIndex !== -1) {
+        currentAddresses[defaultIndex] = {
+          ...currentAddresses[defaultIndex],
+          name: profileForm.name || currentAddresses[defaultIndex].name,
+          phone: profileForm.phone || currentAddresses[defaultIndex].phone,
+        };
+      } else if (currentAddresses.length === 0) {
+        currentAddresses = [{
+          id: Date.now(),
+          name: profileForm.name || user.name || user.email || 'Người dùng',
+          phone: profileForm.phone || '',
+          street: '',
+          city: '',
+          isDefault: true
+        }];
+      }
+      saveAddresses(currentAddresses);
+
       setProfileMessage({ type: 'success', text: 'Cập nhật thông tin thành công!' });
       setTimeout(() => setProfileMessage({ type: '', text: '' }), 3000);
     } catch (e) {
@@ -250,10 +316,10 @@ export default function ProfilePage() {
   const formattedAccumulated = new Intl.NumberFormat('vi-VN').format(totalAccumulated) + ' ₫';
 
   const getMembershipTier = (total: number) => {
-    if (total >= 50000000) return { name: 'Thành viên Kim Cương', color: 'bg-blue-100 text-blue-600', next: null };
-    if (total >= 20000000) return { name: 'Thành viên Vàng', color: 'bg-yellow-100 text-yellow-600', next: 50000000, nextName: 'Kim Cương' };
-    if (total >= 5000000) return { name: 'Thành viên Bạc', color: 'bg-zinc-100 text-zinc-600', next: 20000000, nextName: 'Vàng' };
-    return { name: 'Thành viên Đồng', color: 'bg-orange-100 text-orange-600', next: 5000000, nextName: 'Bạc' };
+    if (total >= 50000000) return { name: 'Thành viên Kim Cương', color: 'bg-blue-100 text-blue-600', next: null, benefits: ['Miễn phí vận chuyển mọi đơn hàng', 'Giảm 10% khi mua phụ kiện', 'Quà tặng sinh nhật trị giá 1.000.000đ', 'Hotline hỗ trợ riêng 24/7'] };
+    if (total >= 20000000) return { name: 'Thành viên Vàng', color: 'bg-yellow-100 text-yellow-600', next: 50000000, nextName: 'Kim Cương', benefits: ['Miễn phí vận chuyển (tối đa 50k)', 'Giảm 5% khi mua phụ kiện', 'Quà tặng sinh nhật trị giá 500.000đ'] };
+    if (total >= 5000000) return { name: 'Thành viên Bạc', color: 'bg-zinc-100 text-zinc-600', next: 20000000, nextName: 'Vàng', benefits: ['Giảm 50% phí vận chuyển', 'Giảm 2% khi mua phụ kiện', 'Quà tặng sinh nhật 200.000đ'] };
+    return { name: 'Thành viên Đồng', color: 'bg-orange-100 text-orange-600', next: 5000000, nextName: 'Bạc', benefits: ['Tích điểm đổi quà', 'Nhận thông báo khuyến mãi sớm'] };
   };
 
   const currentTier = getMembershipTier(totalAccumulated);
@@ -326,8 +392,8 @@ export default function ProfilePage() {
     switch (activeTab) {
       case 'orders':
         return (
-          <div className="bg-white border border-zinc-200 p-8 rounded-xl shadow-sm min-h-[400px]">
-            <h2 className="text-xl font-700 text-zinc-900 mb-6 border-b border-zinc-100 pb-4">Quản lý đơn hàng</h2>
+          <div className="bg-white border border-zinc-100 p-8 md:p-10 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.03)] min-h-[400px]">
+            <h2 className="text-2xl font-display font-900 text-[#0A0A0A] mb-8 border-b border-zinc-100 pb-4">Quản lý đơn hàng</h2>
             {loadingData ? (
               <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#E8002D] border-t-transparent rounded-full animate-spin"></div></div>
             ) : orders.length === 0 ? (
@@ -470,8 +536,8 @@ export default function ProfilePage() {
         );
       case 'favorites':
         return (
-          <div className="bg-white border border-zinc-200 p-8 rounded-xl shadow-sm min-h-[400px]">
-            <h2 className="text-xl font-700 text-zinc-900 mb-6 border-b border-zinc-100 pb-4">Sản phẩm yêu thích</h2>
+          <div className="bg-white border border-zinc-100 p-8 md:p-10 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.03)] min-h-[400px]">
+            <h2 className="text-2xl font-display font-900 text-[#0A0A0A] mb-8 border-b border-zinc-100 pb-4">Sản phẩm yêu thích</h2>
             {loadingData ? (
               <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#E8002D] border-t-transparent rounded-full animate-spin"></div></div>
             ) : favorites.length === 0 ? (
@@ -505,9 +571,9 @@ export default function ProfilePage() {
         );
       case 'address':
         return (
-          <div className="bg-white border border-zinc-200 p-8 rounded-xl shadow-sm min-h-[400px]">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-4 mb-6">
-              <h2 className="text-xl font-700 text-zinc-900">Sổ địa chỉ</h2>
+          <div className="bg-white border border-zinc-100 p-8 md:p-10 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.03)] min-h-[400px]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-zinc-100 pb-4 mb-8 gap-4">
+              <h2 className="text-2xl font-display font-900 text-[#0A0A0A]">Sổ địa chỉ</h2>
               <button onClick={() => { setAddressForm({ id: 0, name: '', phone: '', street: '', city: '', isDefault: false }); setIsAddressModalOpen(true); }} className="bg-[#E8002D] text-white px-5 py-2.5 rounded-lg font-600 text-sm hover:bg-red-700 hover:shadow-lg hover:shadow-red-500/20 transition-all active:scale-95 flex items-center gap-2">
                 <Plus size={16} /> Thêm địa chỉ mới
               </button>
@@ -562,13 +628,13 @@ export default function ProfilePage() {
         );
       case 'settings':
         return (
-          <div className="bg-white border border-zinc-200 p-8 rounded-xl shadow-sm min-h-[400px] relative">
+          <div className="bg-white border border-zinc-100 p-8 md:p-10 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.03)] min-h-[400px] relative">
             {toastMsg && (
-              <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-600 shadow-lg animate-in fade-in slide-in-from-top-4">
+              <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-600 shadow-lg animate-in fade-in slide-in-from-top-4">
                 {toastMsg}
               </div>
             )}
-            <h2 className="text-xl font-700 text-zinc-900 mb-6 border-b border-zinc-100 pb-4">Cài đặt tài khoản & Bảo mật</h2>
+            <h2 className="text-2xl font-display font-900 text-[#0A0A0A] mb-8 border-b border-zinc-100 pb-4">Cài đặt tài khoản & Bảo mật</h2>
             
             {/* Thông báo */}
             <div className="mb-8">
@@ -614,16 +680,6 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 </div>
-                
-                <div onClick={() => updateSetting('twoFactor')} className="flex items-center justify-between p-4 border border-zinc-200 rounded-lg bg-zinc-50/50 hover:border-zinc-300 transition-colors cursor-pointer select-none">
-                  <div>
-                    <p className="font-600 text-zinc-900">Xác thực 2 yếu tố (2FA)</p>
-                    <p className="text-sm text-zinc-500 mt-1">Bảo vệ tài khoản bằng mã xác nhận gửi qua điện thoại.</p>
-                  </div>
-                  <div className={`w-11 h-6 rounded-full relative shadow-inner flex-shrink-0 transition-colors ${settings.twoFactor ? 'bg-green-500' : 'bg-zinc-300'}`}>
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${settings.twoFactor ? 'right-1' : 'left-1'}`}></div>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -646,9 +702,73 @@ export default function ProfilePage() {
         );
       case 'account':
       default: {
+        const dobDateStr = localStorage.getItem(`dob_${user.email}`) || profileForm.dob;
+        let isBirthday = false;
+        if (dobDateStr) {
+           const dobDate = new Date(dobDateStr);
+           const today = new Date();
+           if (!isNaN(dobDate.getTime())) {
+              isBirthday = dobDate.getDate() === today.getDate() && dobDate.getMonth() === today.getMonth();
+           }
+        }
+        
+        const usedYear = localStorage.getItem(`birthday_gift_used_year_${user.email}`);
+        
+        const giftValue = currentTier.name === 'Thành viên Kim Cương' ? 1000000 : currentTier.name === 'Thành viên Vàng' ? 500000 : 200000;
+        const giftFormatted = new Intl.NumberFormat('vi-VN').format(giftValue) + 'đ';
+        
+        // Auto-sync legacy values
+        if (typeof window !== 'undefined' && user?.email) {
+           const existingVal = localStorage.getItem(`birthday_gift_value_${user.email}`);
+           if (!existingVal || parseInt(existingVal) !== giftValue) {
+              localStorage.setItem(`birthday_gift_value_${user.email}`, giftValue.toString());
+           }
+        }
+        
+        const handleClaimGift = () => {
+           localStorage.setItem(`birthday_gift_claimed_year_${user.email}`, new Date().getFullYear().toString());
+           localStorage.setItem(`birthday_gift_claimed_date_${user.email}`, new Date().toISOString());
+           localStorage.setItem(`birthday_gift_value_${user.email}`, giftValue.toString());
+           setShowVoucherCode(true);
+           setGiftClaimedThisYear(true);
+        };
 
         return (
           <div className="space-y-6">
+            {isBirthday && currentTier.name !== 'Thành viên Đồng' && usedYear !== new Date().getFullYear().toString() && (
+               <div className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 p-[2px] rounded-[22px] shadow-lg relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                  <div className="bg-white rounded-[20px] p-6 relative z-10 flex flex-col sm:flex-row items-center gap-6">
+                     <div className="w-16 h-16 bg-gradient-to-br from-pink-50 to-red-50 rounded-full flex items-center justify-center flex-shrink-0 relative overflow-hidden border border-red-100">
+                        <span className="text-3xl relative z-10 animate-bounce">🎁</span>
+                     </div>
+                     <div className="flex-1 text-center sm:text-left">
+                        <h3 className="text-xl font-900 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-pink-600 mb-1">
+                           Chúc mừng sinh nhật, {user.name || user.username}!
+                        </h3>
+                        {!giftClaimedThisYear ? (
+                           <p className="text-zinc-600 font-500 text-sm">
+                              Hôm nay là sinh nhật của bạn! Với hạng <b className={currentTier.color.replace('bg-', 'text-').split(' ')[1]}>{currentTier.name}</b>, bạn đã được gửi tặng một phần quà sinh nhật đặc biệt. Chúc bạn một ngày thật vui vẻ!
+                           </p>
+                        ) : (
+                           <p className="text-zinc-600 font-500 text-sm">
+                              Quà của bạn là mã giảm giá <b className="text-red-600 text-lg px-2 bg-red-50 rounded border border-red-100 font-display">HAPPYBDAY2026</b>. (Giảm {giftFormatted}, hạn sử dụng trong 15 ngày). Hãy sao chép và dùng ở trang thanh toán nhé!
+                           </p>
+                        )}
+                     </div>
+                     {!giftClaimedThisYear ? (
+                        <button onClick={handleClaimGift} className="bg-gradient-to-r from-red-600 to-pink-600 text-white px-6 py-2.5 rounded-lg font-700 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all whitespace-nowrap active:scale-95">
+                           Nhận quà ngay
+                        </button>
+                     ) : (
+                        <button onClick={() => { navigator.clipboard.writeText('HAPPYBDAY2026'); alert('Đã sao chép mã voucher HAPPYBDAY2026!'); }} className="bg-zinc-100 text-zinc-600 px-6 py-2.5 rounded-lg font-700 hover:bg-zinc-200 transition-all whitespace-nowrap border border-zinc-200 active:scale-95">
+                           Sao chép mã
+                        </button>
+                     )}
+                  </div>
+               </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white border border-zinc-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
@@ -740,6 +860,20 @@ export default function ProfilePage() {
                         </p>
                         <span className="text-[#E8002D] font-700 flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100"><Crown size={16} /> Đặc quyền đang chờ!</span>
                      </div>
+                     
+                     <div className="mt-6 pt-6 border-t border-zinc-200/60">
+                        <h4 className="text-sm font-700 text-zinc-800 mb-4 flex items-center gap-2">
+                           <Star size={16} className="text-yellow-500" /> Đặc quyền {currentTier.name}
+                        </h4>
+                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           {currentTier.benefits.map((b, i) => (
+                              <li key={i} className="flex items-start gap-2.5 text-sm text-zinc-600 font-500">
+                                 <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-[#E8002D] shadow-sm flex-shrink-0"></div>
+                                 {b}
+                              </li>
+                           ))}
+                        </ul>
+                     </div>
                   </div>
                 ) : (
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50/80 rounded-xl p-5 border border-blue-100 flex flex-col gap-3">
@@ -780,13 +914,28 @@ export default function ProfilePage() {
                             </div>
                          </div>
                      </div>
+                     
+                      {/* Bảng Đặc Quyền Kim Cương */}
+                      <div className="mt-4 bg-white/60 px-5 py-4 rounded-xl border border-white shadow-sm">
+                        <h4 className="text-sm font-800 text-indigo-800 mb-3 flex items-center gap-2">
+                           <Crown size={16} className="text-indigo-600" /> Đặc quyền của bạn
+                        </h4>
+                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                           {currentTier.benefits.map((b, i) => (
+                              <li key={i} className="flex items-start gap-2 text-[13px] text-blue-900 font-600">
+                                 <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-indigo-500 flex-shrink-0 shadow-sm"></div>
+                                 {b}
+                              </li>
+                           ))}
+                        </ul>
+                      </div>
                   </div>
                 )}
               </div>
             </div>
             
-            <div className="bg-white border border-zinc-200 p-8 rounded-xl shadow-sm">
-              <h2 className="text-xl font-700 text-zinc-900 mb-6 border-b border-zinc-100 pb-4">Cập nhật thông tin chi tiết</h2>
+            <div className="bg-white border border-zinc-100 p-8 md:p-10 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.03)] mt-8">
+              <h2 className="text-2xl font-display font-900 text-[#0A0A0A] mb-8 border-b border-zinc-100 pb-4">Cập nhật thông tin chi tiết</h2>
               
               <div className="space-y-6 max-w-2xl">
                 {profileMessage.text && (
@@ -845,15 +994,19 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 min-h-screen">
-      <h1 className="text-3xl font-display font-900 text-zinc-900 mb-8 tracking-tight">
-        HỒ SƠ <span className="text-[#E8002D]">CÁ NHÂN</span>
-      </h1>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sidebar */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white border border-zinc-200 p-6 shadow-sm rounded-xl flex flex-col items-center">
+    <>
+      {loadingData && <LoadingScreen />}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 min-h-screen">
+        <h1 className="text-4xl font-display font-900 text-[#0A0A0A] mb-10 tracking-tight">
+          HỒ SƠ <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff0000] to-[#ff6a00]">CÁ NHÂN</span>
+        </h1>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white border border-zinc-100 p-8 shadow-[0_15px_40px_rgba(0,0,0,0.03)] rounded-[2rem] flex flex-col items-center relative overflow-hidden">
+            {/* Ambient glow */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-red-400/5 rounded-full blur-2xl pointer-events-none" />
             <div className="w-24 h-24 bg-zinc-100 border-4 border-white shadow-sm rounded-full flex items-center justify-center mb-4 relative group overflow-hidden">
               {user.avatar ? (
                 <img src={user.avatar} alt={user.username || 'User'} className="w-full h-full object-cover" />
@@ -883,61 +1036,61 @@ export default function ProfilePage() {
             <div className={`mt-4 px-3 py-1 ${currentTier.color} text-xs font-600 rounded-full`}>{currentTier.name}</div>
           </div>
           
-          <div className="bg-white border border-zinc-200 shadow-sm rounded-xl overflow-hidden">
+          <div className="bg-white border border-zinc-100 shadow-[0_15px_40px_rgba(0,0,0,0.03)] rounded-[1.5rem] overflow-hidden">
             <button 
               onClick={() => setActiveTab('account')}
-              className={`w-full flex items-center justify-between px-5 py-4 text-sm font-600 transition-colors ${activeTab === 'account' ? 'bg-zinc-50 border-l-4 border-[#E8002D] text-[#E8002D]' : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 border-l-4 border-transparent'}`}
+              className={`w-full flex items-center justify-between px-6 py-4.5 text-[13px] font-display font-800 tracking-wider uppercase transition-all duration-300 ${activeTab === 'account' ? 'bg-zinc-50/80 border-l-[3px] border-[#ff0000] text-[#0A0A0A]' : 'text-zinc-500 hover:text-[#0A0A0A] hover:bg-zinc-50/50 border-l-[3px] border-transparent'}`}
             >
               <div className="flex items-center gap-3">
-                <User size={18} />
-                Thông tin tài khoản
+                <User size={18} className={activeTab === 'account' ? 'text-[#ff0000]' : ''} />
+                Thông tin
               </div>
               <ChevronRight size={16} className={activeTab === 'account' ? 'opacity-100' : 'opacity-0'} />
             </button>
             <button 
               onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center justify-between px-5 py-4 text-sm font-600 transition-colors border-t border-zinc-100 ${activeTab === 'orders' ? 'bg-zinc-50 border-l-4 border-[#E8002D] text-[#E8002D]' : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 border-l-4 border-transparent'}`}
+              className={`w-full flex items-center justify-between px-6 py-4.5 text-[13px] font-display font-800 tracking-wider uppercase transition-all duration-300 border-t border-zinc-100/50 ${activeTab === 'orders' ? 'bg-zinc-50/80 border-l-[3px] border-[#ff0000] text-[#0A0A0A]' : 'text-zinc-500 hover:text-[#0A0A0A] hover:bg-zinc-50/50 border-l-[3px] border-transparent'}`}
             >
               <div className="flex items-center gap-3">
-                <Package size={18} />
-                Quản lý đơn hàng
+                <Package size={18} className={activeTab === 'orders' ? 'text-[#ff0000]' : ''} />
+                Đơn hàng
               </div>
               <ChevronRight size={16} className={activeTab === 'orders' ? 'opacity-100' : 'opacity-0'} />
             </button>
             <button 
               onClick={() => setActiveTab('favorites')}
-              className={`w-full flex items-center justify-between px-5 py-4 text-sm font-600 transition-colors border-t border-zinc-100 ${activeTab === 'favorites' ? 'bg-zinc-50 border-l-4 border-[#E8002D] text-[#E8002D]' : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 border-l-4 border-transparent'}`}
+              className={`w-full flex items-center justify-between px-6 py-4.5 text-[13px] font-display font-800 tracking-wider uppercase transition-all duration-300 border-t border-zinc-100/50 ${activeTab === 'favorites' ? 'bg-zinc-50/80 border-l-[3px] border-[#ff0000] text-[#0A0A0A]' : 'text-zinc-500 hover:text-[#0A0A0A] hover:bg-zinc-50/50 border-l-[3px] border-transparent'}`}
             >
               <div className="flex items-center gap-3">
-                <Heart size={18} />
-                Sản phẩm yêu thích
+                <Heart size={18} className={activeTab === 'favorites' ? 'text-[#ff0000]' : ''} />
+                Yêu thích
               </div>
               <ChevronRight size={16} className={activeTab === 'favorites' ? 'opacity-100' : 'opacity-0'} />
             </button>
             <button 
               onClick={() => setActiveTab('address')}
-              className={`w-full flex items-center justify-between px-5 py-4 text-sm font-600 transition-colors border-t border-zinc-100 ${activeTab === 'address' ? 'bg-zinc-50 border-l-4 border-[#E8002D] text-[#E8002D]' : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 border-l-4 border-transparent'}`}
+              className={`w-full flex items-center justify-between px-6 py-4.5 text-[13px] font-display font-800 tracking-wider uppercase transition-all duration-300 border-t border-zinc-100/50 ${activeTab === 'address' ? 'bg-zinc-50/80 border-l-[3px] border-[#ff0000] text-[#0A0A0A]' : 'text-zinc-500 hover:text-[#0A0A0A] hover:bg-zinc-50/50 border-l-[3px] border-transparent'}`}
             >
               <div className="flex items-center gap-3">
-                <MapPin size={18} />
+                <MapPin size={18} className={activeTab === 'address' ? 'text-[#ff0000]' : ''} />
                 Sổ địa chỉ
               </div>
               <ChevronRight size={16} className={activeTab === 'address' ? 'opacity-100' : 'opacity-0'} />
             </button>
             <button 
               onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center justify-between px-5 py-4 text-sm font-600 transition-colors border-t border-zinc-100 ${activeTab === 'settings' ? 'bg-zinc-50 border-l-4 border-[#E8002D] text-[#E8002D]' : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 border-l-4 border-transparent'}`}
+              className={`w-full flex items-center justify-between px-6 py-4.5 text-[13px] font-display font-800 tracking-wider uppercase transition-all duration-300 border-t border-zinc-100/50 ${activeTab === 'settings' ? 'bg-zinc-50/80 border-l-[3px] border-[#ff0000] text-[#0A0A0A]' : 'text-zinc-500 hover:text-[#0A0A0A] hover:bg-zinc-50/50 border-l-[3px] border-transparent'}`}
             >
               <div className="flex items-center gap-3">
-                <Settings size={18} />
-                Cài đặt tài khoản
+                <Settings size={18} className={activeTab === 'settings' ? 'text-[#ff0000]' : ''} />
+                Cài đặt
               </div>
               <ChevronRight size={16} className={activeTab === 'settings' ? 'opacity-100' : 'opacity-0'} />
             </button>
           </div>
           
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-white text-zinc-600 hover:text-[#E8002D] hover:bg-zinc-50 transition-colors text-sm border border-zinc-200 rounded-xl font-600 shadow-sm">
-            <LogOut size={18} />
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-white text-zinc-600 hover:text-red-500 hover:bg-red-50 transition-colors text-[13px] border border-zinc-100 rounded-[1.5rem] font-display font-800 tracking-wider uppercase shadow-[0_10px_30px_rgba(0,0,0,0.02)]">
+            <LogOut size={16} />
             Đăng xuất
           </button>
         </div>
@@ -1041,6 +1194,7 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -21,6 +21,8 @@ public class ProductSpecification {
     private Product product;
     
     private String screenSize;
+    private String ram;
+    private String storage;
     private String os;
     private String processor;
     private String mainCamera;

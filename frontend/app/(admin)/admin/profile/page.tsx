@@ -15,6 +15,7 @@ export default function ProfilePage() {
   const [toast, setToast] = useState<{show: boolean; type: 'success' | 'error'; message: string}>({ show: false, type: 'success', message: '' });
 
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -80,6 +81,42 @@ export default function ProfilePage() {
     }
   };
 
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    const token = localStorage.getItem('token');
+    setIsUploadingCover(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await fetch('http://localhost:8080/api/v1/upload', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!uploadRes.ok) throw new Error('Upload failed');
+      const { url } = await uploadRes.json();
+      if (url) {
+        const updateRes = await fetch(`http://localhost:8080/api/v1/users/${user.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ coverImage: url }),
+        });
+        if (updateRes.ok) {
+          const updated = { ...user, coverImage: url };
+          setUser(updated);
+          localStorage.setItem('user', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+          showToast('success', 'Cập nhật ảnh bìa thành công!');
+        }
+      }
+    } catch (err) {
+      showToast('error', 'Upload ảnh bìa thất bại!');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ show: true, type, message });
     setTimeout(() => setToast({ show: false, type: 'success', message: '' }), 3000);
@@ -129,8 +166,22 @@ export default function ProfilePage() {
       <div className="bg-white dark:bg-[#0d1117]/80 backdrop-blur-xl border border-slate-200 dark:border-[#1e293b]/80 rounded-2xl shadow-xl shadow-slate-200/40 dark:shadow-none overflow-hidden relative">
         
         {/* Cover & Avatar */}
-        <div className="h-40 bg-gradient-to-br from-[#6366f1] via-[#8b5cf6] to-[#d946ef] relative overflow-hidden">
-          <div className="absolute inset-0 bg-black/10"></div>
+        <div 
+          className={`h-40 relative group/cover ${!user?.coverImage ? 'bg-gradient-to-br from-[#6366f1] via-[#8b5cf6] to-[#d946ef]' : 'bg-cover bg-center'}`}
+          style={user?.coverImage ? { backgroundImage: `url(${user.coverImage})` } : {}}
+        >
+          <div className="absolute inset-0 bg-black/10 group-hover/cover:bg-black/30 transition-colors"></div>
+          
+          <label className="absolute top-4 right-4 z-20 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 cursor-pointer opacity-0 group-hover/cover:opacity-100 transition-opacity backdrop-blur-sm flex items-center justify-center gap-2 text-sm font-medium pr-4">
+            {isUploadingCover ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Camera size={18} />
+            )}
+            <span>Đổi ảnh bìa</span>
+            <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} disabled={isUploadingCover} />
+          </label>
+          
           <div className="absolute -bottom-16 left-6 sm:left-10 z-10">
               <div className="relative group">
               <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white dark:border-[#0d1117] bg-white dark:bg-[#111827] flex items-center justify-center text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] uppercase shadow-lg shadow-black/10 overflow-hidden">

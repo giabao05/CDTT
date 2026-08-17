@@ -21,7 +21,7 @@ public class FavoriteController {
     private final ProductRepository productRepository;
 
     @GetMapping("/{email}")
-    public ResponseEntity<?> getFavoritesByUser(@PathVariable String email) {
+    public ResponseEntity<?> getFavoritesByUser(@PathVariable("email") String email) {
         List<Map<String, Object>> result = favoriteRepository.findByUserEmailOrderByCreatedAtDesc(email).stream().map(fav -> {
             Product p = fav.getProduct();
             return Map.of(
@@ -61,7 +61,7 @@ public class FavoriteController {
     }
 
     @DeleteMapping("/{email}/{productId}")
-    public ResponseEntity<?> removeFavorite(@PathVariable String email, @PathVariable Long productId) {
+    public ResponseEntity<?> removeFavorite(@PathVariable("email") String email, @PathVariable("productId") Long productId) {
         favoriteRepository.findByUserEmailAndProductId(email, productId)
                 .ifPresent(favoriteRepository::delete);
         return ResponseEntity.ok().build();

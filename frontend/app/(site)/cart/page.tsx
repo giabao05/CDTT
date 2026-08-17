@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Trash2, Plus, Minus, ShoppingCart, Tag, X, ArrowRight, Truck } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { fetchVouchers } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 
 function fmt(n: number) {
   return n.toLocaleString('vi-VN') + ' ₫';
@@ -15,6 +16,7 @@ export default function CartPage() {
     cart, subtotal, discountAmount, shippingFee, totalAmount,
     removeItem, updateQty, applyCoupon, removeCoupon,
   } = useCart();
+  const { user } = useAuthStore();
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
@@ -23,18 +25,95 @@ export default function CartPage() {
   useEffect(() => {
     fetchVouchers().then(data => {
       if (data) {
-        setVouchers(data.filter((v: any) => v.isActive !== false));
+        const now = new Date().getTime();
+        setVouchers(data.filter((v: any) => {
+          if (v.isActive === false) return false;
+          if (v.maxUsage && v.currentUsage != null && v.currentUsage >= v.maxUsage) return false;
+          if (v.expiresAt && new Date(v.expiresAt).getTime() < now) return false;
+          return true;
+        }));
       }
     });
   }, []);
 
-  const handleApplyCoupon = (codeToApply = couponInput) => {
+  const handleApplyCoupon = async (codeToApply = couponInput) => {
     if (!codeToApply.trim()) return;
     const upperCode = codeToApply.toUpperCase();
+    
+    // Birthday gift check
+    if (upperCode === 'HAPPYBDAY2026') {
+      if (!user?.email) {
+         setCouponError('Vui lòng đăng nhập để sử dụng mã này.');
+         setCouponSuccess('');
+         return;
+      }
+      
+      const usedYearStr = localStorage.getItem(`birthday_gift_used_year_${user.email}`);
+      if (usedYearStr === new Date().getFullYear().toString()) {
+         setCouponError('Mã sinh nhật năm nay của bạn đã được sử dụng!');
+         setCouponSuccess('');
+         return;
+      }
+      
+      const claimedDateStr = localStorage.getItem(`birthday_gift_claimed_date_${user.email}`);
+      const claimedYearStr = localStorage.getItem(`birthday_gift_claimed_year_${user.email}`);
+      
+      if (!claimedYearStr) {
+         setCouponError('Bạn chưa nhận mã này từ trang cá nhân.');
+         setCouponSuccess('');
+         return;
+      }
+      
+      let claimedDate = new Date();
+      if (claimedDateStr) {
+         claimedDate = new Date(claimedDateStr);
+      }
+      
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - claimedDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 15) {
+         setCouponError('Mã sinh nhật đã hết hạn (quá 15 ngày kể từ ngày nhận).');
+         setCouponSuccess('');
+         return;
+      }
+      
+      const claimedValueStr = localStorage.getItem(`birthday_gift_value_${user.email}`);
+      let discountValue = claimedValueStr ? parseInt(claimedValueStr) : 0;
+      
+      if (!discountValue || discountValue === 200000) {
+         try {
+            const { fetchUserOrders } = await import('@/lib/api');
+            const userOrders = await fetchUserOrders(user.email);
+            const totalAccumulated = userOrders
+              .filter((o: any) => {
+                const s = (o.status || '').toLowerCase();
+                return !s.includes('cancel') && !s.includes('hủy');
+              })
+              .reduce((sum: number, o: any) => sum + (Number(o.total) || Number(o.totalAmount) || 0), 0);
+              
+            if (totalAccumulated >= 50000000) discountValue = 1000000;
+            else if (totalAccumulated >= 20000000) discountValue = 500000;
+            else discountValue = 200000;
+            
+            // Auto-heal the local storage value
+            localStorage.setItem(`birthday_gift_value_${user.email}`, discountValue.toString());
+         } catch (e) {
+            discountValue = 200000; // Fallback
+         }
+      }
+      
+      applyCoupon(upperCode, discountValue, true); // Pass true for isGift
+      setCouponSuccess(`Áp dụng thành công mã sinh nhật "HAPPYBDAY2026" (Giảm ${new Intl.NumberFormat('vi-VN').format(discountValue)}đ)!`);
+      setCouponError('');
+      return;
+    }
+
     const found = vouchers.find(v => v.code.toUpperCase() === upperCode);
     
     if (found) {
-      applyCoupon(upperCode, found.discountPercent / 100);
+      applyCoupon(upperCode, found.discountPercent / 100, false); // System voucher
       setCouponSuccess(`Áp dụng thành công mã "${upperCode}"!`);
       setCouponError('');
     } else {
@@ -124,22 +203,22 @@ export default function CartPage() {
               return (
                 <div
                   key={item.variant.id}
-                  className="bg-white border border-zinc-200 p-4 flex gap-4"
+                  className="bg-white rounded-[2rem] border border-zinc-100 shadow-[0_15px_40px_rgba(0,0,0,0.03)] p-4 sm:p-5 flex gap-4 sm:gap-6 hover:shadow-[0_20px_50px_rgba(0,0,0,0.06)] transition-shadow duration-300"
                 >
                   {/* Image */}
                   <button
                     onClick={() => router.push(`/product/${item.product.slug}`)}
-                    className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 bg-zinc-50 border border-zinc-100 overflow-hidden"
+                    className="flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 bg-[#F8F8F7] rounded-[1.5rem] flex items-center justify-center p-3 relative overflow-hidden group"
                   >
                     <img
                       src={item.product.thumbnail}
                       alt={item.product.name}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform"
+                      className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
                     />
                   </button>
 
                   {/* Info */}
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-[10px] font-display font-600 tracking-widest uppercase text-zinc-600">
@@ -163,23 +242,23 @@ export default function CartPage() {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between mt-3 flex-wrap gap-3">
+                    <div className="flex items-center justify-between mt-auto flex-wrap gap-3">
                       {/* Qty controls */}
-                      <div className="flex items-center border border-zinc-200">
+                      <div className="flex items-center bg-zinc-50 rounded-full p-1 border border-zinc-100">
                         <button
                           onClick={() => updateQty(item.variant.id, item.quantity - 1)}
-                          className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:bg-zinc-50 transition-colors"
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-zinc-500 hover:text-black hover:shadow-sm transition-all"
                         >
-                          <Minus size={13} />
+                          <Minus size={13} strokeWidth={2.5} />
                         </button>
-                        <span className="w-9 text-center text-sm font-mono-data font-700 text-zinc-900">
+                        <span className="w-8 text-center text-sm font-display font-800 text-zinc-900">
                           {item.quantity}
                         </span>
                         <button
                           onClick={() => updateQty(item.variant.id, item.quantity + 1)}
-                          className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:bg-zinc-50 transition-colors"
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-zinc-500 hover:text-black hover:shadow-sm transition-all"
                         >
-                          <Plus size={13} />
+                          <Plus size={13} strokeWidth={2.5} />
                         </button>
                       </div>
 
@@ -208,30 +287,50 @@ export default function CartPage() {
 
           {/* ── ORDER SUMMARY ── */}
           <div className="lg:col-span-1">
-            <div className="bg-white border border-zinc-200 p-5 sticky top-24">
-              <h2 className="font-display font-700 text-sm tracking-widest uppercase text-[#0A0A0A] mb-4">
+            <div className="bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-zinc-100 p-6 sm:p-7 sticky top-24">
+              <h2 className="font-display font-800 text-base tracking-widest uppercase text-[#0A0A0A] mb-5">
                 Tóm tắt đơn hàng
               </h2>
 
-              {/* Coupon */}
+              {/* Coupons */}
               <div className="mb-4">
-                {cart.couponCode ? (
-                  <div className="flex items-center justify-between bg-green-50 border border-green-200 px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <Tag size={13} className="text-green-600" />
-                      <span className="text-xs font-mono-data font-600 text-green-700">
-                        {cart.couponCode}
-                      </span>
-                      <span className="text-xs text-green-600 font-body">
-                        -{Math.round(cart.discount * 100)}%
-                      </span>
+                {cart.coupons && cart.coupons.length > 0 ? (
+                  <div className="space-y-2">
+                    {cart.coupons.map((c: any) => (
+                      <div key={c.code} className="flex items-center justify-between bg-green-50 border border-green-200 px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <Tag size={13} className="text-green-600" />
+                          <span className="text-xs font-mono-data font-600 text-green-700">
+                            {c.code}
+                          </span>
+                          <span className="text-xs text-green-600 font-body">
+                            -{c.discount > 1 ? fmt(c.discount) : `${Math.round(c.discount * 100)}%`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => removeCoupon(c.code)}
+                          className="text-green-500 hover:text-red-500 transition-colors"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    <div className="flex gap-2 relative mt-3">
+                      <input
+                        type="text"
+                        placeholder="Thêm mã khác..."
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value)}
+                        className="flex-1 bg-white border border-zinc-200 text-sm px-4 py-2.5 rounded-lg focus:outline-none focus:border-[#E8002D] font-mono-data"
+                      />
+                      <button
+                        onClick={() => handleApplyCoupon()}
+                        className="bg-zinc-900 text-white px-5 rounded-lg font-display font-700 text-xs tracking-wider uppercase hover:bg-zinc-800 transition-colors"
+                      >
+                        Áp dụng
+                      </button>
                     </div>
-                    <button
-                      onClick={removeCoupon}
-                      className="text-green-500 hover:text-red-500 transition-colors"
-                    >
-                      <X size={13} />
-                    </button>
                   </div>
                 ) : (
                   <div className="flex gap-2 relative">
@@ -255,13 +354,13 @@ export default function CartPage() {
                         setCouponSuccess('');
                       }}
                       onKeyDown={e => e.key === 'Enter' && handleApplyCoupon()}
-                      className="flex-1 border border-zinc-300 text-xs font-mono-data px-3 py-2 focus:outline-none focus:border-zinc-500 uppercase placeholder:normal-case placeholder:font-body"
+                      className="flex-1 border border-zinc-200 bg-zinc-50 rounded-xl text-xs font-mono-data px-4 py-3 focus:outline-none focus:border-[#0A0A0A] focus:ring-1 focus:ring-[#0A0A0A] focus:bg-white uppercase placeholder:normal-case placeholder:font-body transition-all"
                     />
                     <button
                       onClick={() => handleApplyCoupon()}
-                      className="px-3 py-2 bg-[#0A0A0A] text-white text-xs font-display font-700 tracking-wider uppercase hover:bg-zinc-700 transition-colors"
+                      className="px-4 py-3 bg-[#0A0A0A] rounded-xl text-white text-xs font-display font-700 tracking-wider uppercase hover:bg-zinc-800 transition-colors shadow-sm"
                     >
-                      <Tag size={13} />
+                      <Tag size={14} />
                     </button>
                     
                     {/* Coupon Dropdown */}
@@ -323,10 +422,14 @@ export default function CartPage() {
 
               <button
                 onClick={() => router.push('/cart/checkout')}
-                className="w-full mt-4 flex items-center justify-center gap-2 py-3.5 bg-[#E8002D] text-white font-display font-700 text-sm tracking-wider uppercase hover:bg-red-700 transition-colors"
+                className="group relative w-full mt-5 flex items-center justify-center gap-2 py-4 rounded-[1.2rem] bg-gradient-to-r from-[#ff0000] to-[#ff6a00] text-white font-display font-800 text-sm tracking-wider uppercase shadow-[0_10px_25px_rgba(255,8,68,0.4)] overflow-hidden transition-transform duration-300 hover:scale-[1.02] active:scale-95"
               >
-                Tiến hành thanh toán
-                <ArrowRight size={16} />
+                {/* Glow layer */}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#ff0844] via-[#ff9900] to-[#ff0844] bg-[length:200%_auto] opacity-0 group-hover:opacity-100 transition-opacity duration-500 group-hover:animate-[gradient-shift_1.5s_linear_infinite]" />
+                <span className="relative z-10 flex items-center gap-2">
+                  Tiến hành thanh toán
+                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                </span>
               </button>
 
               <button

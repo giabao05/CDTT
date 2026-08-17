@@ -35,6 +35,11 @@ public class UserController {
         return service.updateUser(id, updateDetails);
     }
 
+    @PutMapping("/{id}/settings")
+    public User updateSettings(@PathVariable("id") Long id, @RequestBody com.phonestore.backend.dto.UserSettingsDto settingsDto) {
+        return service.updateSettings(id, settingsDto);
+    }
+
     @PutMapping("/{id}/password")
     public void changePassword(@PathVariable("id") Long id, @RequestBody java.util.Map<String, String> request) {
         service.changePassword(id, request.get("oldPassword"), request.get("newPassword"));

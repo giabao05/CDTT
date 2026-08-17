@@ -26,6 +26,8 @@ public class ProductService {
     private final OrderItemRepository orderItemRepository;
     private final com.phonestore.backend.repository.ProductVariantRepository productVariantRepository;
     private final BannerRepository bannerRepository;
+    private final com.phonestore.backend.repository.FavoriteRepository favoriteRepository;
+    private final com.phonestore.backend.repository.ReviewRepository reviewRepository;
 
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllActiveProducts() {
@@ -85,6 +87,12 @@ public class ProductService {
         return mapToResponse(product);
     }
 
+    @Transactional(readOnly = true)
+    public List<ProductSummaryResponse> searchProducts(String query) {
+        return productRepository.searchProductsByQuery(query, org.springframework.data.domain.PageRequest.of(0, 5))
+                .stream().map(this::mapToSummaryResponse).collect(Collectors.toList());
+    }
+
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
         // Create Product
@@ -92,6 +100,7 @@ public class ProductService {
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setBasePrice(request.getBasePrice());
+        product.setSalePrice(request.getSalePrice());
         product.setThumbnail(request.getThumbnail());
         product.setIsFeatured(request.getIsFeatured() != null ? request.getIsFeatured() : false);
         product.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
@@ -130,6 +139,8 @@ public class ProductService {
             ProductSpecification spec = new ProductSpecification();
             spec.setProduct(product);
             spec.setScreenSize(request.getSpecification().getScreenSize());
+            spec.setRam(request.getSpecification().getRam());
+            spec.setStorage(request.getSpecification().getStorage());
             spec.setOs(request.getSpecification().getOs());
             spec.setProcessor(request.getSpecification().getProcessor());
             spec.setMainCamera(request.getSpecification().getMainCamera());
@@ -176,8 +187,9 @@ public class ProductService {
 
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Product not found"));
+        try {
+            Product product = productRepository.findById(id)
+                    .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Product not found"));
 
         String oldSlug = product.getSlug();
 
@@ -188,6 +200,7 @@ public class ProductService {
         }
         product.setDescription(request.getDescription());
         product.setBasePrice(request.getBasePrice());
+        product.setSalePrice(request.getSalePrice());
         product.setThumbnail(request.getThumbnail());
         product.setIsFeatured(request.getIsFeatured() != null ? request.getIsFeatured() : false);
         product.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
@@ -223,6 +236,8 @@ public class ProductService {
                 product.setSpecification(spec);
             }
             spec.setScreenSize(request.getSpecification().getScreenSize());
+            spec.setRam(request.getSpecification().getRam());
+            spec.setStorage(request.getSpecification().getStorage());
             spec.setOs(request.getSpecification().getOs());
             spec.setProcessor(request.getSpecification().getProcessor());
             spec.setMainCamera(request.getSpecification().getMainCamera());
@@ -322,6 +337,10 @@ public class ProductService {
         }
 
         return mapToResponse(savedProduct);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "Error updating product: " + e.getMessage(), e);
+        }
     }
 
     @Transactional
@@ -331,6 +350,11 @@ public class ProductService {
         }
         // Nullify variant references in order_items to avoid FK constraint violation
         orderItemRepository.nullifyVariantsByProductId(id);
+        
+        // Delete favorites and reviews referencing this product to avoid FK constraint violation
+        favoriteRepository.deleteByProductId(id);
+        reviewRepository.deleteByProductId(id);
+        
         productRepository.deleteById(id);
     }
 
@@ -370,6 +394,8 @@ public class ProductService {
             specResp = ProductSpecificationResponse.builder()
                     .id(p.getSpecification().getId())
                     .screenSize(p.getSpecification().getScreenSize())
+                    .ram(p.getSpecification().getRam())
+                    .storage(p.getSpecification().getStorage())
                     .os(p.getSpecification().getOs())
                     .processor(p.getSpecification().getProcessor())
                     .mainCamera(p.getSpecification().getMainCamera())
@@ -410,9 +436,12 @@ public class ProductService {
                 .slug(p.getSlug())
                 .description(p.getDescription())
                 .basePrice(p.getBasePrice())
+                .salePrice(p.getSalePrice())
                 .thumbnail(p.getThumbnail())
                 .isFeatured(p.getIsFeatured())
                 .isActive(p.getIsActive())
+                .rating(p.getRating())
+                .reviewCount(p.getReviewCount())
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .category(catResp)
@@ -443,6 +472,32 @@ public class ProductService {
                     .build();
         }
 
+        ProductSpecificationResponse specResp = null;
+        if (p.getSpecification() != null) {
+            specResp = ProductSpecificationResponse.builder()
+                    .id(p.getSpecification().getId())
+                    .screenSize(p.getSpecification().getScreenSize())
+                    .ram(p.getSpecification().getRam())
+                    .storage(p.getSpecification().getStorage())
+                    .os(p.getSpecification().getOs())
+                    .processor(p.getSpecification().getProcessor())
+                    .mainCamera(p.getSpecification().getMainCamera())
+                    .selfieCamera(p.getSpecification().getSelfieCamera())
+                    .battery(p.getSpecification().getBattery())
+                    .sim(p.getSpecification().getSim())
+                    .build();
+        }
+
+        List<ProductImageResponse> imgResps = Collections.emptyList();
+        if (p.getImages() != null) {
+            imgResps = p.getImages().stream().map(i -> ProductImageResponse.builder()
+                    .id(i.getId())
+                    .imageUrl(i.getImageUrl())
+                    .isThumbnail(i.getIsThumbnail())
+                    .sortOrder(i.getSortOrder())
+                    .build()).collect(Collectors.toList());
+        }
+
         List<ProductVariantResponse> varResps = Collections.emptyList();
         if (p.getVariants() != null) {
             varResps = p.getVariants().stream().map(v -> ProductVariantResponse.builder()
@@ -463,10 +518,16 @@ public class ProductService {
                 .name(p.getName())
                 .slug(p.getSlug())
                 .basePrice(p.getBasePrice())
+                .salePrice(p.getSalePrice())
                 .thumbnail(p.getThumbnail())
                 .isFeatured(p.getIsFeatured())
                 .isActive(p.getIsActive())
+                .rating(p.getRating())
+                .reviewCount(p.getReviewCount())
                 .createdAt(p.getCreatedAt())
+                .description(p.getDescription())
+                .specification(specResp)
+                .images(imgResps)
                 .category(catResp)
                 .brand(brandResp)
                 .variants(varResps)

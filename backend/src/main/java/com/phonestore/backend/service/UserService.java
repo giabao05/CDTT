@@ -37,6 +37,14 @@ public class UserService {
         if (updateDetails.getPhone() != null) user.setPhone(updateDetails.getPhone());
         if (updateDetails.getAddress() != null) user.setAddress(updateDetails.getAddress());
         if (updateDetails.getAvatar() != null) user.setAvatar(updateDetails.getAvatar());
+        if (updateDetails.getCoverImage() != null) user.setCoverImage(updateDetails.getCoverImage());
+        return repository.save(user);
+    }
+    
+    public User updateSettings(Long id, com.phonestore.backend.dto.UserSettingsDto settingsDto) {
+        User user = getUserById(id);
+        user.setEmailNotifEnabled(settingsDto.isEmailNotifEnabled());
+        user.setPromoNotifEnabled(settingsDto.isPromoNotifEnabled());
         return repository.save(user);
     }
     

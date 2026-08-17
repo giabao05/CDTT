@@ -19,6 +19,7 @@ public class ProductResponse {
     private String slug;
     private String description;
     private BigDecimal basePrice;
+    private BigDecimal salePrice;
     private String thumbnail;
     
     private CategoryResponse category;
@@ -26,6 +27,9 @@ public class ProductResponse {
     
     private Boolean isFeatured;
     private Boolean isActive;
+    
+    private Double rating;
+    private Integer reviewCount;
     
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

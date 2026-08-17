@@ -22,6 +22,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     org.springframework.data.domain.Page<Product> findByCategorySlugAndIsActiveTrue(String categorySlug, Pageable pageable);
     org.springframework.data.domain.Page<Product> findByBrandSlugAndIsActiveTrue(String brandSlug, Pageable pageable);
     
+    @Query("SELECT p FROM Product p WHERE p.isActive = true AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(p.brand.name) LIKE LOWER(CONCAT('%', :query, '%')))")
+    List<Product> searchProductsByQuery(@org.springframework.data.repository.query.Param("query") String query, Pageable pageable);
+    
     @Query("SELECT p FROM OrderItem oi JOIN oi.variant v JOIN v.product p JOIN oi.order o " +
            "WHERE o.status != 'Cancelled' " +
            "AND p.isActive = true " +

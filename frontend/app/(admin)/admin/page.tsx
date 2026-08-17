@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import LoadingScreen from '@/components/LoadingScreen';
 import {
   TrendingUp,
   ShoppingCart,
@@ -103,11 +104,7 @@ export default function DashboardPage() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[70vh]">
-        <Loader2 className="w-8 h-8 text-[#6366f1] animate-spin" />
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!data || !data.kpis) {

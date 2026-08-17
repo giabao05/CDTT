@@ -5,6 +5,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { useGoogleLogin } from '@react-oauth/google';
+import { loginWithGoogle } from '@/lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -32,6 +34,24 @@ export default function LoginPage() {
   const handleSocialLogin = (provider) => {
     alert(`Tính năng đăng nhập bằng ${provider} sẽ sớm được cập nhật! Vui lòng chờ thiết lập Backend.`);
   };
+
+  const loginGoogle = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        setIsLoading(true);
+        const res = await loginWithGoogle(tokenResponse.access_token);
+        setAuth(res.user, res.token);
+        router.push('/');
+      } catch (err) {
+        setError('Đăng nhập Google thất bại');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: () => {
+      setError('Đăng nhập Google thất bại');
+    }
+  });
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -93,9 +113,9 @@ export default function LoginPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-semibold text-slate-700">Mật khẩu</label>
-                  <a href="#" className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors">
+                  <Link href="/forgot-password" className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors">
                     Quên mật khẩu?
-                  </a>
+                  </Link>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -135,7 +155,8 @@ export default function LoginPage() {
 
             <div className="mt-6 grid grid-cols-3 gap-4">
               <button
-                onClick={() => handleSocialLogin('Google')}
+                type="button"
+                onClick={() => loginGoogle()}
                 className="flex justify-center items-center py-2.5 px-4 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-sm"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

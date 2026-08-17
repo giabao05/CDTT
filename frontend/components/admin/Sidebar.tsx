@@ -24,7 +24,8 @@ import {
   ShieldCheck,
   Shield,
   CreditCard,
-  Repeat
+  Repeat,
+  Mail
 } from 'lucide-react';
 
 const navItems = [
@@ -41,6 +42,7 @@ const navItems = [
   { path: '/admin/banners', label: 'Banners', icon: Image },
   { path: '/admin/news', label: 'Tin tức', icon: FileText },
   { path: '/admin/reviews', label: 'Đánh giá', icon: MessageSquare },
+  { path: '/admin/contacts', label: 'Liên hệ', icon: Mail },
 ];
 
 export default function Sidebar() {
@@ -50,12 +52,19 @@ export default function Sidebar() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        setUser(JSON.parse(userStr));
-      } catch (e) {}
-    }
+    const loadUser = () => {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          setUser(JSON.parse(userStr));
+        } catch (e) {}
+      }
+    };
+    
+    loadUser();
+    
+    window.addEventListener('storage', loadUser);
+    return () => window.removeEventListener('storage', loadUser);
   }, []);
 
   const handleLogout = () => {
@@ -144,14 +153,14 @@ export default function Sidebar() {
       {/* Admin info */}
       <div className={`border-t border-slate-200 dark:border-[#1e293b] p-3 ${collapsed ? 'flex justify-center' : ''}`}>
         {collapsed ? (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white uppercase">
-            {user?.name?.charAt(0) || 'A'}
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white uppercase overflow-hidden">
+            {user?.avatar ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : (user?.name?.charAt(0) || 'A')}
           </div>
         ) : (
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white flex-shrink-0 uppercase">
-              {user?.name?.charAt(0) || 'A'}
-            </div>
+            <Link href="/admin/profile" className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] flex items-center justify-center text-xs font-bold text-slate-900 dark:text-white flex-shrink-0 uppercase overflow-hidden hover:ring-2 hover:ring-[#6366f1] transition-all">
+              {user?.avatar ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" /> : (user?.name?.charAt(0) || 'A')}
+            </Link>
             <div className="overflow-hidden">
               <p className="text-[12px] font-semibold text-slate-900 dark:text-[#f1f5f9] truncate">{user?.name || 'Admin'}</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-500 dark:text-[#475569] truncate">{user?.email || 'admin'}</p>

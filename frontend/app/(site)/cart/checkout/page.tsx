@@ -59,7 +59,7 @@ function InputField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-display font-700 tracking-wider uppercase text-zinc-800 mb-1.5">
+      <label className="block text-[11px] sm:text-xs font-display font-800 tracking-wider uppercase text-zinc-800 mb-2 pl-1">
         {label} {required && <span className="text-[#E8002D]">*</span>}
       </label>
       <input
@@ -67,13 +67,13 @@ function InputField({
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full border text-sm font-body px-3 py-2.5 focus:outline-none transition-colors text-zinc-900 placeholder:text-zinc-400 ${
-          error ? 'border-[#E8002D]' : 'border-zinc-300 focus:border-zinc-500'
+        className={`w-full bg-zinc-50 border rounded-xl text-sm font-body px-4 py-3 focus:outline-none transition-all duration-300 text-zinc-900 placeholder:text-zinc-400 focus:bg-white focus:shadow-[0_4px_12px_rgba(0,0,0,0.05)] ${
+          error ? 'border-[#E8002D] focus:ring-1 focus:ring-[#E8002D]' : 'border-zinc-200 focus:border-[#0A0A0A] focus:ring-1 focus:ring-[#0A0A0A]'
         }`}
       />
       {error && (
-        <p className="text-[10px] text-[#E8002D] font-body mt-1 flex items-center gap-1">
-          <AlertCircle size={10} />
+        <p className="text-[11px] text-[#E8002D] font-body mt-1.5 flex items-center gap-1 pl-1">
+          <AlertCircle size={12} />
           {error}
         </p>
       )}
@@ -173,6 +173,12 @@ export default function CheckoutPage() {
       };
 
       const createdOrder = await createOrder(orderData);
+      
+      const hasGiftCoupon = cart.coupons.some((c: any) => c.isGift);
+      if (hasGiftCoupon && user?.email) {
+          localStorage.setItem(`birthday_gift_used_year_${user.email}`, new Date().getFullYear().toString());
+      }
+      
       clearCart();
       router.push(`/cart/success?orderCode=${createdOrder.id}`);
     } catch (error) {
@@ -232,8 +238,8 @@ export default function CheckoutPage() {
 
             {/* Step 0: Shipping info */}
             {step === 0 && (
-              <div className="bg-white border border-zinc-200 p-6">
-                <h2 className="font-display font-700 text-sm tracking-widest uppercase text-[#0A0A0A] mb-5">
+              <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-zinc-100 p-6 sm:p-8">
+                <h2 className="font-display font-800 text-base tracking-widest uppercase text-[#0A0A0A] mb-6 pl-1">
                   Thông tin giao hàng
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -265,14 +271,14 @@ export default function CheckoutPage() {
                     error={errors.email}
                   />
                   <div>
-                    <label className="block text-xs font-display font-700 tracking-wider uppercase text-zinc-600 mb-1.5">
+                    <label className="block text-[11px] sm:text-xs font-display font-800 tracking-wider uppercase text-zinc-800 mb-2 pl-1">
                       Tỉnh / Thành phố <span className="text-[#E8002D]">*</span>
                     </label>
                     <select
                       value={form.province}
                       onChange={e => setField('province')(e.target.value)}
-                      className={`w-full border text-sm font-body px-3 py-2.5 bg-white focus:outline-none transition-colors ${
-                        errors.province ? 'border-[#E8002D]' : 'border-zinc-300 focus:border-zinc-500'
+                      className={`w-full appearance-none bg-zinc-50 border rounded-xl text-sm font-body px-4 py-3 focus:outline-none transition-all duration-300 text-zinc-900 focus:bg-white focus:shadow-[0_4px_12px_rgba(0,0,0,0.05)] cursor-pointer ${
+                        errors.province ? 'border-[#E8002D] focus:ring-1 focus:ring-[#E8002D]' : 'border-zinc-200 focus:border-[#0A0A0A] focus:ring-1 focus:ring-[#0A0A0A]'
                       }`}
                     >
                       <option value="">Chọn tỉnh/thành phố</option>
@@ -281,7 +287,7 @@ export default function CheckoutPage() {
                       ))}
                     </select>
                     {errors.province && (
-                      <p className="text-[10px] text-[#E8002D] font-body mt-1">{errors.province as string}</p>
+                      <p className="text-[11px] text-[#E8002D] font-body mt-1.5 pl-1">{errors.province as string}</p>
                     )}
                   </div>
                   <InputField
@@ -307,7 +313,7 @@ export default function CheckoutPage() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-display font-700 tracking-wider uppercase text-zinc-600 mb-1.5">
+                    <label className="block text-[11px] sm:text-xs font-display font-800 tracking-wider uppercase text-zinc-800 mb-2 pl-1">
                       Ghi chú đơn hàng
                     </label>
                     <textarea
@@ -315,47 +321,47 @@ export default function CheckoutPage() {
                       onChange={e => setField('note')(e.target.value)}
                       placeholder="Giao giờ hành chính, gọi trước khi giao..."
                       rows={3}
-                      className="w-full border border-zinc-300 text-sm font-body text-zinc-900 placeholder:text-zinc-400 px-3 py-2.5 focus:outline-none focus:border-zinc-500 resize-none transition-colors"
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-body text-zinc-900 placeholder:text-zinc-400 px-4 py-3 focus:outline-none focus:border-[#0A0A0A] focus:ring-1 focus:ring-[#0A0A0A] focus:bg-white focus:shadow-[0_4px_12px_rgba(0,0,0,0.05)] resize-none transition-all duration-300"
                     />
                   </div>
                 </div>
 
                 <button
                   onClick={() => { if (validate()) setStep(1); }}
-                  className="mt-6 w-full flex items-center justify-center gap-2 py-3.5 bg-[#E8002D] text-white font-display font-700 text-sm tracking-wider uppercase hover:bg-red-700 transition-colors"
+                  className="mt-8 w-full flex items-center justify-center gap-2 py-4 rounded-[1.2rem] bg-[#0A0A0A] text-white font-display font-800 text-sm tracking-wider uppercase hover:bg-zinc-800 transition-all shadow-[0_10px_20px_rgba(0,0,0,0.15)] hover:scale-[1.01]"
                 >
                   Tiếp tục
-                  <ChevronRight size={16} />
+                  <ChevronRight size={18} />
                 </button>
               </div>
             )}
 
             {/* Step 1: Payment */}
             {step === 1 && (
-              <div className="bg-white border border-zinc-200 p-6">
-                <h2 className="font-display font-700 text-sm tracking-widest uppercase text-[#0A0A0A] mb-5">
+              <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-zinc-100 p-6 sm:p-8">
+                <h2 className="font-display font-800 text-base tracking-widest uppercase text-[#0A0A0A] mb-6 pl-1">
                   Phương thức thanh toán
                 </h2>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {PAYMENT_METHODS.map(method => (
                     <label
                       key={method.id}
-                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${
+                      className={`flex items-center gap-4 p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all duration-300 ${
                         paymentMethod === method.id
-                          ? 'border-[#0A0A0A] bg-zinc-50'
-                          : 'border-zinc-200 hover:border-zinc-400'
+                          ? 'border-[#0A0A0A] bg-zinc-50 shadow-[0_4px_15px_rgba(0,0,0,0.03)]'
+                          : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/50'
                       }`}
                     >
                       <div
-                        className={`w-4 h-4 border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
                           paymentMethod === method.id
                             ? 'border-[#0A0A0A] bg-[#0A0A0A]'
                             : 'border-zinc-300'
                         }`}
                       >
                         {paymentMethod === method.id && (
-                          <Check size={10} strokeWidth={3} className="text-white" />
+                          <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
                         )}
                       </div>
                       <input
@@ -367,8 +373,8 @@ export default function CheckoutPage() {
                         className="hidden"
                       />
                       <div>
-                        <p className="font-display font-700 text-sm text-[#0A0A0A]">{method.label}</p>
-                        <p className="text-xs text-zinc-400 font-body mt-0.5">{method.sub}</p>
+                        <p className="font-display font-800 text-sm text-[#0A0A0A]">{method.label}</p>
+                        <p className="text-xs text-zinc-500 font-body mt-0.5">{method.sub}</p>
                       </div>
                     </label>
                   ))}
@@ -396,19 +402,19 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                <div className="flex gap-3 mt-6">
+                <div className="flex gap-4 mt-8">
                   <button
                     onClick={() => setStep(0)}
-                    className="px-5 py-3 border border-zinc-300 text-xs font-display font-600 tracking-wider uppercase text-zinc-600 hover:border-zinc-500 transition-colors"
+                    className="px-6 py-4 rounded-[1.2rem] border border-zinc-200 bg-white text-xs font-display font-800 tracking-wider uppercase text-zinc-600 hover:bg-zinc-50 hover:text-[#0A0A0A] transition-all shadow-sm"
                   >
                     Quay lại
                   </button>
                   <button
                     onClick={() => setStep(2)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#E8002D] text-white font-display font-700 text-xs tracking-wider uppercase hover:bg-red-700 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 py-4 rounded-[1.2rem] bg-[#0A0A0A] text-white font-display font-800 text-sm tracking-wider uppercase hover:bg-zinc-800 transition-all shadow-[0_10px_20px_rgba(0,0,0,0.15)] hover:scale-[1.01]"
                   >
                     Xem lại đơn hàng
-                    <ChevronRight size={14} />
+                    <ChevronRight size={18} />
                   </button>
                 </div>
               </div>
@@ -416,69 +422,73 @@ export default function CheckoutPage() {
 
             {/* Step 2: Confirmation */}
             {step === 2 && (
-              <div className="bg-white border border-zinc-200 p-6">
-                <h2 className="font-display font-700 text-sm tracking-widest uppercase text-[#0A0A0A] mb-5">
+              <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-zinc-100 p-6 sm:p-8">
+                <h2 className="font-display font-800 text-base tracking-widest uppercase text-[#0A0A0A] mb-6 pl-1">
                   Xác nhận đơn hàng
                 </h2>
 
                 {/* Shipping summary */}
-                <div className="bg-zinc-50 border border-zinc-200 p-4 mb-4">
-                  <p className="text-xs font-display font-700 tracking-widest uppercase text-zinc-500 mb-2">
+                <div className="bg-zinc-50 rounded-2xl border border-zinc-200 p-5 mb-4">
+                  <p className="text-xs font-display font-800 tracking-widest uppercase text-zinc-500 mb-3">
                     Địa chỉ giao hàng
                   </p>
-                  <p className="text-sm font-display font-700 text-[#0A0A0A]">{form.fullName}</p>
-                  <p className="text-sm font-body text-zinc-800 mt-0.5">{form.phone}</p>
-                  <p className="text-sm font-body text-zinc-700 mt-0.5">
+                  <p className="text-[15px] font-display font-800 text-[#0A0A0A]">{form.fullName}</p>
+                  <p className="text-sm font-body text-zinc-800 mt-1">{form.phone}</p>
+                  <p className="text-sm font-body text-zinc-600 mt-1">
                     {form.address}{form.ward ? `, ${form.ward}` : ''}{form.district ? `, ${form.district}` : ''}, {form.province}
                   </p>
                 </div>
 
-                <div className="bg-zinc-50 border border-zinc-200 p-4 mb-6">
-                  <p className="text-xs font-display font-700 tracking-widest uppercase text-zinc-500 mb-2">
+                <div className="bg-zinc-50 rounded-2xl border border-zinc-200 p-5 mb-6">
+                  <p className="text-xs font-display font-800 tracking-widest uppercase text-zinc-500 mb-3">
                     Phương thức thanh toán
                   </p>
-                  <p className="text-sm font-display font-700 text-[#0A0A0A]">
+                  <p className="text-[15px] font-display font-800 text-[#0A0A0A]">
                     {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}
                   </p>
                 </div>
 
                 {/* Order items */}
-                <div className="space-y-3 mb-4">
+                <div className="space-y-4 mb-8">
                   {cart.items.map(item => (
-                    <div key={item.variant.id} className="flex items-center gap-3">
+                    <div key={item.variant.id} className="flex items-center gap-4 bg-white rounded-2xl border border-zinc-100 p-3 shadow-sm hover:shadow-md transition-shadow">
                       <img
                         src={item.product.thumbnail}
                         alt={item.product.name}
-                        className="w-12 h-12 object-cover bg-zinc-100 flex-shrink-0"
+                        className="w-16 h-16 object-contain bg-[#F8F8F7] rounded-xl flex-shrink-0 p-1"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-display font-700 text-[#0A0A0A] truncate">
+                        <p className="text-[13px] sm:text-sm font-display font-800 text-[#0A0A0A] truncate">
                           {item.product.name}
                         </p>
-                        <p className="text-xs text-zinc-400 font-body">
+                        <p className="text-xs text-zinc-500 font-body mt-0.5">
                           {item.variant.color} · {item.variant.storage} × {item.quantity}
                         </p>
                       </div>
-                      <p className="text-sm font-mono-data font-600 text-[#E8002D] flex-shrink-0">
+                      <p className="text-sm sm:text-base font-display font-900 text-[#0A0A0A] flex-shrink-0">
                         {fmt((item.variant.salePrice ?? item.variant.price) * item.quantity)}
                       </p>
                     </div>
                   ))}
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-4">
                   <button
                     onClick={() => setStep(1)}
-                    className="px-5 py-3 border border-zinc-300 text-xs font-display font-600 tracking-wider uppercase text-zinc-600 hover:border-zinc-500 transition-colors"
+                    className="px-6 py-4 rounded-[1.2rem] border border-zinc-200 bg-white text-xs font-display font-800 tracking-wider uppercase text-zinc-600 hover:bg-zinc-50 hover:text-[#0A0A0A] transition-all shadow-sm"
                   >
                     Quay lại
                   </button>
                   <button
                     onClick={handlePlaceOrder}
-                    className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#E8002D] text-white font-display font-700 text-sm tracking-wider uppercase hover:bg-red-700 transition-colors"
+                    className="group relative flex-1 flex items-center justify-center gap-2 py-4 rounded-[1.2rem] bg-gradient-to-r from-[#ff0000] to-[#ff6a00] text-white font-display font-800 text-sm tracking-wider uppercase shadow-[0_10px_25px_rgba(255,8,68,0.4)] overflow-hidden transition-transform duration-300 hover:scale-[1.02] active:scale-95"
                   >
-                    <Check size={16} />
-                    Đặt hàng ngay ({fmt(totalAmount)})
+                    {/* Glow layer */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#ff0844] via-[#ff9900] to-[#ff0844] bg-[length:200%_auto] opacity-0 group-hover:opacity-100 transition-opacity duration-500 group-hover:animate-[gradient-shift_1.5s_linear_infinite]" />
+                    <span className="relative z-10 flex items-center gap-2">
+                      <Check size={18} />
+                      Đặt hàng ngay ({fmt(totalAmount)})
+                    </span>
                   </button>
                 </div>
               </div>
@@ -487,39 +497,39 @@ export default function CheckoutPage() {
 
           {/* Order summary sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white border border-zinc-200 p-5 sticky top-24">
-              <h3 className="font-display font-700 text-xs tracking-widest uppercase text-[#0A0A0A] mb-4">
-                Đơn hàng ({cart.items.reduce((s, i) => s + i.quantity, 0)} sản phẩm)
+            <div className="bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-zinc-100 p-6 sm:p-7 sticky top-24">
+              <h3 className="font-display font-800 text-base tracking-widest uppercase text-[#0A0A0A] mb-5">
+                Đơn hàng ({cart.items.reduce((s, i) => s + i.quantity, 0)} sp)
               </h3>
 
-              <div className="space-y-3 max-h-64 overflow-y-auto">
+              <div className="space-y-4 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
                 {cart.items.map(item => (
-                  <div key={item.variant.id} className="flex items-center gap-2.5">
+                  <div key={item.variant.id} className="flex items-center gap-3 bg-zinc-50/50 p-2 rounded-2xl border border-zinc-100/50">
                     <div className="relative flex-shrink-0">
                       <img
                         src={item.product.thumbnail}
                         alt={item.product.name}
-                        className="w-11 h-11 object-cover bg-zinc-100"
+                        className="w-14 h-14 object-contain bg-white rounded-xl p-1 shadow-sm"
                       />
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-zinc-600 text-white text-[9px] font-700 flex items-center justify-center">
+                      <span className="absolute -top-2 -right-2 w-5 h-5 bg-[#0A0A0A] text-white text-[10px] font-900 rounded-full flex items-center justify-center shadow-md">
                         {item.quantity}
                       </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-display font-600 text-[#0A0A0A] truncate">
+                    <div className="flex-1 min-w-0 pl-1">
+                      <p className="text-[13px] font-display font-800 text-[#0A0A0A] truncate">
                         {item.product.name}
                       </p>
-                      <p className="text-[10px] text-zinc-400 font-body">{item.variant.storage}</p>
+                      <p className="text-[11px] text-zinc-500 font-body mt-0.5">{item.variant.storage}</p>
                     </div>
-                    <p className="text-xs font-mono-data font-700 text-zinc-800 flex-shrink-0">
+                    <p className="text-[13px] font-display font-800 text-zinc-800 flex-shrink-0 pl-2">
                       {fmt((item.variant.salePrice ?? item.variant.price) * item.quantity)}
                     </p>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t border-zinc-100 mt-4 pt-4 space-y-2 text-xs">
-                <div className="flex justify-between text-zinc-800 font-body">
+              <div className="border-t border-zinc-100 mt-5 pt-5 space-y-3 text-xs">
+                <div className="flex justify-between text-zinc-600 font-body">
                   <span>Tạm tính</span>
                   <span className="font-mono-data font-700 text-zinc-900">{fmt(subtotal)}</span>
                 </div>
@@ -529,17 +539,17 @@ export default function CheckoutPage() {
                     <span className="font-mono-data">-{fmt(discountAmount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-zinc-800 font-body">
+                <div className="flex justify-between text-zinc-600 font-body">
                   <span>Vận chuyển</span>
-                  <span className={`font-mono-data font-700 ${shippingFee === 0 ? 'text-green-700' : 'text-zinc-900'}`}>
+                  <span className={`font-mono-data font-700 ${shippingFee === 0 ? 'text-green-600' : 'text-zinc-900'}`}>
                     {shippingFee === 0 ? 'Miễn phí' : fmt(shippingFee)}
                   </span>
                 </div>
               </div>
 
-              <div className="border-t border-zinc-200 mt-3 pt-3 flex justify-between items-center">
-                <span className="font-display font-800 text-xs uppercase tracking-wider text-zinc-900">Tổng</span>
-                <span className="font-display font-900 text-lg text-[#E8002D]">{fmt(totalAmount)}</span>
+              <div className="border-t border-zinc-100 mt-4 pt-4 flex justify-between items-center">
+                <span className="font-display font-800 text-sm uppercase tracking-wider text-zinc-900">Tổng</span>
+                <span className="font-display font-900 text-xl text-[#E8002D]">{fmt(totalAmount)}</span>
               </div>
             </div>
           </div>

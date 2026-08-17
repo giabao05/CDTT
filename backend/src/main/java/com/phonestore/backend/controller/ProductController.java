@@ -64,6 +64,11 @@ public class ProductController {
         return ResponseEntity.ok(productService.getFeaturedProducts());
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<List<com.phonestore.backend.dto.ProductSummaryResponse>> searchProducts(@RequestParam("q") String query) {
+        return ResponseEntity.ok(productService.searchProducts(query));
+    }
+
     @GetMapping("/{slug}")
     public ResponseEntity<ProductResponse> getProductBySlug(@PathVariable("slug") String slug) {
         return ResponseEntity.ok(productService.getProductBySlug(slug));

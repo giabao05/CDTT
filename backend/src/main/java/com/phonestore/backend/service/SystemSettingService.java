@@ -16,7 +16,7 @@ public class SystemSettingService {
     }
 
     public SystemSetting getById(String id) {
-        return repository.findById(id).orElseThrow(() -> new RuntimeException("SystemSetting not found"));
+        return repository.findById(id).orElse(null);
     }
 
     public SystemSetting save(SystemSetting systemsetting) {

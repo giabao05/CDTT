@@ -28,6 +28,8 @@ public class User implements UserDetails {
     
     private String avatar;
     
+    private String coverImage;
+    
     @Column(unique = true, nullable = false)
     private String email;
     
@@ -37,6 +39,12 @@ public class User implements UserDetails {
     private String phone;
     
     private String address;
+    
+    @Builder.Default
+    private boolean emailNotifEnabled = true;
+    
+    @Builder.Default
+    private boolean promoNotifEnabled = false;
 
     @Enumerated(EnumType.STRING)
     private Role role;

@@ -64,11 +64,11 @@ export default function ProductsPage() {
             image: p.thumbnail || p.images?.[0]?.imageUrl || '',
             images: p.images?.map((img: any) => img.imageUrl) || [],
             price: p.basePrice || 0,
-            salePrice: null,
+            salePrice: p.salePrice || null,
             stock: p.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0,
             status: p.isActive ? 'In Stock' : 'Out of Stock',
-            ram: '8GB',
-            storage: '256GB',
+            ram: p.specification?.ram || '',
+            storage: p.specification?.storage || '',
             color: 'Đen',
             chipset: p.specification?.processor || '',
             screen: p.specification?.screenSize || '',
@@ -158,13 +158,17 @@ export default function ProductsPage() {
     setShowModal(true);
   };
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSave = async () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || isSaving) return;
+    setIsSaving(true);
     try {
       const payload = {
         name: form.name,
         description: form.description,
         basePrice: form.price,
+        salePrice: form.salePrice,
         thumbnail: form.image,
         category: form.category,
         brand: form.brand,
@@ -175,7 +179,9 @@ export default function ProductsPage() {
           os: form.os,
           processor: form.chipset,
           mainCamera: form.camera,
-          battery: form.battery
+          battery: form.battery,
+          ram: form.ram,
+          storage: form.storage
         },
         variants: variants.map(v => ({
           id: (v as any).id,
@@ -208,11 +214,11 @@ export default function ProductsPage() {
               image: p.thumbnail || p.images?.[0]?.imageUrl || '',
               images: p.images?.map((img: any) => img.imageUrl) || [],
               price: p.basePrice || 0,
-              salePrice: null,
+              salePrice: p.salePrice || null,
               stock: p.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0,
               status: p.isActive ? 'In Stock' : 'Out of Stock',
-              ram: '8GB',
-              storage: '256GB',
+              ram: p.specification?.ram || '',
+              storage: p.specification?.storage || '',
               color: 'Đen',
               chipset: p.specification?.processor || '',
               screen: p.specification?.screenSize || '',
@@ -239,11 +245,11 @@ export default function ProductsPage() {
               brand: p.brand?.name || 'Khác',
               image: p.thumbnail || p.images?.[0]?.imageUrl || '',
               price: p.basePrice || 0,
-              salePrice: null,
+              salePrice: p.salePrice || null,
               stock: p.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0,
               status: p.isActive ? 'In Stock' : 'Out of Stock',
-              ram: '8GB',
-              storage: '256GB',
+              ram: p.specification?.ram || '',
+              storage: p.specification?.storage || '',
               color: 'Đen',
               chipset: p.specification?.processor || '',
               screen: p.specification?.screenSize || '',
@@ -261,6 +267,8 @@ export default function ProductsPage() {
     } catch (e) {
       console.error(e);
       alert('Có lỗi xảy ra khi lưu sản phẩm');
+    } finally {
+      setIsSaving(false);
     }
   };
 

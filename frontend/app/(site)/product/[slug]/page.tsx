@@ -5,13 +5,16 @@ import {
   ShoppingCart, Zap, ChevronRight, Star, Shield, Truck,
   RotateCcw, Check, ChevronLeft, Share2, Heart, Minus, Plus
 } from 'lucide-react';
+import Image from 'next/image';
 import type { Product, ProductVariant } from '@/types';
 import { fetchProductBySlug, fetchProducts } from '@/lib/api';
 import { useCart } from '@/context/CartContext';
 import StarRating from '@/components/StarRating';
 import ProductCard from '@/components/ProductCard';
+import RecentlyViewed, { saveRecentlyViewed } from '@/components/RecentlyViewed';
 import { useAuthStore } from '@/store/authStore';
 import { useFavoriteStore } from '@/store/favoriteStore';
+import LoadingScreen from '@/components/LoadingScreen';
 
 function fmt(n: number) {
   return n.toLocaleString('vi-VN') + ' ₫';
@@ -26,6 +29,7 @@ const SPEC_LABELS: Record<string, string> = {
   os: 'Hệ điều hành',
 };
 
+// Invalidate cache V6
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
@@ -39,9 +43,12 @@ export default function ProductDetailPage() {
       setLoading(true);
       const p = await fetchProductBySlug(slug);
       setProduct(p);
-      if (p && p.brand) {
-         const related = await fetchProducts(undefined, p.brand);
-         setRelatedProducts(related.products.filter(r => r.id !== p.id).slice(0, 4));
+      if (p) {
+         saveRecentlyViewed(p);
+         if (p.brand) {
+           const related = await fetchProducts(undefined, p.brand);
+           setRelatedProducts(related.products.filter(r => r.id !== p.id).slice(0, 4));
+         }
       }
       setLoading(false);
     }
@@ -49,7 +56,7 @@ export default function ProductDetailPage() {
   }, [slug]);
 
   if (loading) {
-     return <div className="min-h-screen flex items-center justify-center"><p className="text-zinc-400">Đang tải...</p></div>;
+     return <LoadingScreen />;
   }
   if (!product) {
      return <div className="min-h-screen flex items-center justify-center"><p className="text-zinc-400">Sản phẩm không tồn tại.</p></div>;
@@ -114,8 +121,8 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
     v => v.color === initColor && v.storage === initStorage && v.ram === initRam
   );
 
-  const price = selectedVariant?.salePrice ?? selectedVariant?.price ?? product.basePrice;
-  const originalPrice = selectedVariant?.salePrice ? selectedVariant.price : null;
+  const price = selectedVariant?.salePrice ?? selectedVariant?.price ?? product.baseSalePrice ?? product.basePrice;
+  const originalPrice = selectedVariant?.salePrice ? selectedVariant.price : (product.baseSalePrice ? product.basePrice : null);
   const discountPct = originalPrice
     ? Math.round(((originalPrice - price) / originalPrice) * 100)
     : null;
@@ -153,7 +160,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
         productId: product.id,
         userId: user.id,
         authorName: user.name || user.email || 'Khách hàng',
-        authorAvatar: `https://i.pravatar.cc/150?u=${user.id}`,
+        authorAvatar: user.avatar ? resolveImageUrl(user.avatar) : `https://i.pravatar.cc/150?u=${user.id}`,
         rating: reviewForm.rating,
         comment: reviewForm.body,
         isApproved: true,
@@ -175,29 +182,41 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
     <div className="min-h-screen bg-[#F8F8F7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
 
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-xs text-zinc-400 font-body mb-6">
-          <button onClick={() => router.push('/')} className="hover:text-[#E8002D]">
-            Trang chủ
-          </button>
-          <span>/</span>
+        {/* Top Navigation */}
+        <div className="flex items-center gap-4 mb-6">
           <button
-            onClick={() => router.push(`/product?brand=${product.brand}`)}
-            className="hover:text-[#E8002D]"
+            onClick={() => router.push('/product')}
+            className="flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-full bg-white border border-zinc-200 text-zinc-600 hover:text-[#0A0A0A] hover:border-zinc-300 hover:shadow-sm transition-all"
+            title="Quay lại trang sản phẩm"
           >
-            {product.brand}
+            <ChevronLeft size={18} />
           </button>
-          <span>/</span>
-          <span className="text-[#0A0A0A] font-500 truncate max-w-[200px]">{product.name}</span>
-        </nav>
+          
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-xs text-zinc-400 font-body">
+            <button onClick={() => router.push('/')} className="hover:text-[#E8002D] transition-colors">
+              Trang chủ
+            </button>
+            <span className="text-zinc-500">/</span>
+            <button
+              onClick={() => router.push(`/product?brand=${product.brand}`)}
+              className="hover:text-[#E8002D] transition-colors"
+            >
+              {product.brand}
+            </button>
+            <span className="text-zinc-500">/</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E8002D] to-[#ff0055] font-600 truncate max-w-[200px]">{product.name}</span>
+          </nav>
+        </div>
 
         {/* Main layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xl:gap-12">
+        <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-zinc-100">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xl:gap-14">
 
           {/* ── IMAGE GALLERY ── */}
-          <div className="flex flex-col-reverse sm:flex-row gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-4 lg:gap-6">
             {/* Thumbnails */}
-            <div className="flex sm:flex-col gap-2 overflow-x-auto sm:overflow-visible">
+            <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 scrollbar-hide">
               {(product.images && product.images.length > 0 ? product.images : [product.thumbnail || '']).map((img, i) => (
                 <button
                   key={i}
@@ -205,8 +224,10 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                     setActiveImage(i);
                     setOverrideImage(null);
                   }}
-                  className={`flex-shrink-0 w-16 h-16 sm:w-18 sm:h-18 border-2 overflow-hidden transition-all ${
-                    i === activeImage && !overrideImage ? 'border-[#0A0A0A]' : 'border-zinc-200 hover:border-zinc-400'
+                  className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden transition-all duration-300 ${
+                    i === activeImage && !overrideImage 
+                      ? 'ring-2 ring-[#E8002D] ring-offset-2 scale-105 shadow-[0_5px_15px_rgba(232,0,45,0.2)]' 
+                      : 'border border-zinc-200 hover:border-zinc-400 opacity-70 hover:opacity-100'
                   }`}
                 >
                   <img src={img} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
@@ -215,19 +236,19 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             </div>
 
             {/* Main image */}
-            <div className="flex-1 relative bg-white border border-zinc-200 aspect-square overflow-hidden group">
+            <div className="flex-1 relative bg-zinc-50 rounded-3xl border border-zinc-100 aspect-square overflow-hidden group shadow-inner">
               <img
                 src={overrideImage || (product.images && product.images.length > 0 ? product.images[activeImage] : product.thumbnail) || ''}
                 alt={product.name}
-                className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-full object-contain p-8 transition-transform duration-700 group-hover:scale-110 drop-shadow-xl"
               />
               {discountPct && (
-                <div className="absolute top-3 left-3 bg-[#E8002D] text-white text-xs font-display font-700 px-2 py-1">
+                <div className="absolute top-4 left-4 bg-gradient-to-r from-[#E8002D] to-[#ff0055] text-white text-xs font-display font-800 px-3 py-1.5 rounded-full shadow-[0_5px_15px_rgba(232,0,45,0.4)]">
                   -{discountPct}%
                 </div>
               )}
               {product.isNew && (
-                <div className="absolute top-3 right-3 bg-[#0A0A0A] text-white text-[10px] font-display font-700 tracking-widest px-2 py-1">
+                <div className="absolute top-4 right-4 bg-[#0A0A0A] text-white text-[10px] font-display font-800 tracking-widest px-3 py-1.5 rounded-full shadow-lg">
                   MỚI
                 </div>
               )}
@@ -237,15 +258,15 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                 <>
                   <button
                     onClick={() => setActiveImage(i => Math.max(0, i - 1))}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 border border-zinc-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm border border-zinc-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:shadow-lg hover:scale-110 text-zinc-600 hover:text-black"
                   >
-                    <ChevronLeft size={16} />
+                    <ChevronLeft size={20} />
                   </button>
                   <button
                     onClick={() => setActiveImage(i => Math.min((product.images?.length || 1) - 1, i + 1))}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 border border-zinc-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm border border-zinc-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:shadow-lg hover:scale-110 text-zinc-600 hover:text-black"
                   >
-                    <ChevronRight size={16} />
+                    <ChevronRight size={20} />
                   </button>
                 </>
               )}
@@ -295,39 +316,42 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             </div>
 
             {/* Price */}
-            <div className="bg-zinc-50 border border-zinc-200 p-4">
-              <div className="flex items-baseline gap-3">
-                <span className="font-display font-900 text-3xl text-[#E8002D]">
-                  {fmt(price)}
-                </span>
-                {originalPrice && (
-                  <>
-                    <span className="text-sm text-zinc-400 line-through font-mono-data">
+            <div className="bg-gradient-to-br from-[#E8002D]/5 to-zinc-50 rounded-2xl p-6 shadow-sm border border-[#E8002D]/10 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#E8002D]/20 to-transparent rounded-full blur-3xl group-hover:bg-[#E8002D]/30 transition-all duration-700"></div>
+              <div className="flex flex-col gap-1 relative z-10">
+                <div className="flex items-baseline gap-4">
+                  <span className="font-display font-900 text-3xl sm:text-4xl text-[#E8002D]">
+                    {fmt(price)}
+                  </span>
+                  {originalPrice && (
+                    <span className="text-sm text-zinc-500 line-through font-mono-data">
                       {fmt(originalPrice)}
                     </span>
-                    <span className="text-xs bg-[#E8002D] text-white font-display font-700 px-2 py-0.5">
-                      -{discountPct}%
+                  )}
+                </div>
+                {originalPrice && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-xs bg-gradient-to-r from-[#E8002D] to-[#ff0055] text-white font-display font-800 px-3 py-1 rounded-full shadow-sm">
+                      Giảm {discountPct}%
                     </span>
-                  </>
+                    <p className="text-xs text-zinc-500 font-body font-500">
+                      Tiết kiệm {fmt(originalPrice - price)}
+                    </p>
+                  </div>
                 )}
               </div>
-              {originalPrice && (
-                <p className="text-xs text-zinc-500 font-body mt-1">
-                  Tiết kiệm {fmt(originalPrice - price)} so với giá gốc
-                </p>
-              )}
             </div>
 
             {/* Color selector */}
             {colors.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <span className="text-xs font-display font-700 tracking-wider uppercase text-[#0A0A0A]">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-display font-800 tracking-wider uppercase text-[#0A0A0A]">
                   Màu sắc
                 </span>
-                <span className="text-xs text-zinc-500 font-body">{initColor}</span>
+                <span className="text-xs text-zinc-500 font-body bg-zinc-100 px-3 py-1 rounded-full">{initColor || 'Chọn màu'}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-3">
                 {colors.map(color => {
                   const v = (product.variants || []).find(x => x.color === color);
                   return (
@@ -335,7 +359,18 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                       key={color}
                       onClick={() => {
                         setSelectedColor(color);
-                        setSelectedStorage('');
+                        // Only clear storage if it's not valid for the new color
+                        const validStorages = [...new Set((product.variants || []).filter(v => v.color === color).map(v => v.storage))];
+                        if (selectedStorage && !validStorages.includes(selectedStorage)) {
+                          setSelectedStorage('');
+                          setSelectedRam('');
+                        } else if (selectedStorage && selectedRam) {
+                          const validRams = [...new Set((product.variants || []).filter(v => v.color === color && v.storage === selectedStorage).map(v => v.ram))];
+                          if (!validRams.includes(selectedRam)) {
+                            setSelectedRam('');
+                          }
+                        }
+
                         if (v?.imageUrl && !v.imageUrl.startsWith('#')) {
                           setOverrideImage(resolveImageUrl(v.imageUrl));
                         } else {
@@ -346,8 +381,10 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                           }
                         }
                       }}
-                      className={`relative w-9 h-9 border-2 transition-all ${
-                        initColor === color ? 'border-[#0A0A0A] scale-110' : 'border-zinc-300 hover:border-zinc-500'
+                      className={`relative w-11 h-11 rounded-full transition-all duration-300 ${
+                        initColor === color 
+                          ? 'ring-2 ring-[#0A0A0A] ring-offset-4 scale-110 shadow-lg' 
+                          : 'border border-zinc-200 hover:scale-105 hover:shadow-md'
                       }`}
                       title={color}
                       style={{ backgroundColor: v?.colorCode ?? '#ccc' }}
@@ -355,11 +392,11 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
                       {initColor === color && (
                         <div className="absolute inset-0 flex items-center justify-center">
                           <Check
-                            size={14}
+                            size={16}
                             strokeWidth={3}
                             className={
                               v?.colorCode && parseInt(v.colorCode.slice(1), 16) < 0x888888
-                                ? 'text-white'
+                                ? 'text-white drop-shadow-md'
                                 : 'text-[#0A0A0A]'
                             }
                           />
@@ -375,27 +412,35 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             {/* Storage selector */}
             {storages.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <span className="text-xs font-display font-700 tracking-wider uppercase text-[#0A0A0A]">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-display font-800 tracking-wider uppercase text-[#0A0A0A]">
                   Dung lượng
                 </span>
-                <span className="text-xs text-zinc-500 font-body">{initStorage}</span>
+                <span className="text-xs text-zinc-500 font-body bg-zinc-100 px-3 py-1 rounded-full">{initStorage || 'Chọn bộ nhớ'}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-3">
                 {storages.map(storage => {
-                  const vPrice = product.variants?.find(v => v.storage === storage && (initColor ? v.color === initColor : true))?.price;
                   return (
                     <button
                       key={storage}
-                      onClick={() => { setSelectedStorage(storage); setSelectedRam(''); }}
-                      className={`px-4 py-2 border text-sm font-display font-600 transition-all ${
+                      onClick={() => { 
+                        setSelectedStorage(storage); 
+                        if (selectedRam) {
+                          const validRams = [...new Set((product.variants || []).filter(v => 
+                            (selectedColor ? v.color === selectedColor : true) && v.storage === storage
+                          ).map(v => v.ram))];
+                          if (!validRams.includes(selectedRam)) {
+                            setSelectedRam('');
+                          }
+                        }
+                      }}
+                      className={`px-6 py-2.5 rounded-full text-sm font-display font-700 transition-all duration-300 ${
                         initStorage === storage
-                          ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
-                          : 'border-zinc-300 text-zinc-700 hover:border-zinc-500'
+                          ? 'bg-[#0A0A0A] text-white shadow-lg scale-105 border border-[#0A0A0A]'
+                          : 'bg-white text-zinc-600 border border-zinc-200 hover:border-zinc-400 hover:text-zinc-900 shadow-sm'
                       }`}
                     >
                       <span className="font-mono-data">{storage}</span>
-
                     </button>
                   );
                 })}
@@ -406,27 +451,25 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             {/* RAM selector */}
             {rams.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <span className="text-xs font-display font-700 tracking-wider uppercase text-[#0A0A0A]">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-display font-800 tracking-wider uppercase text-[#0A0A0A]">
                   RAM
                 </span>
-                <span className="text-xs text-zinc-500 font-body">{initRam}</span>
+                <span className="text-xs text-zinc-500 font-body bg-zinc-100 px-3 py-1 rounded-full">{initRam || 'Chọn RAM'}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-3">
                 {rams.map(ram => {
-                  const vPrice = product.variants?.find(v => v.ram === ram && (initStorage ? v.storage === initStorage : true) && (initColor ? v.color === initColor : true))?.price;
                   return (
                     <button
                       key={ram}
                       onClick={() => setSelectedRam(ram)}
-                      className={`px-4 py-2 border text-sm font-display font-600 transition-all ${
+                      className={`px-6 py-2.5 rounded-full text-sm font-display font-700 transition-all duration-300 ${
                         initRam === ram
-                          ? 'border-[#0A0A0A] bg-[#0A0A0A] text-white'
-                          : 'border-zinc-300 text-zinc-700 hover:border-zinc-500'
+                          ? 'bg-[#0A0A0A] text-white shadow-lg scale-105 border border-[#0A0A0A]'
+                          : 'bg-white text-zinc-600 border border-zinc-200 hover:border-zinc-400 hover:text-zinc-900 shadow-sm'
                       }`}
                     >
                       <span className="font-mono-data">{ram}</span>
-
                     </button>
                   );
                 })}
@@ -451,55 +494,68 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             )}
 
             {/* Quantity + CTA */}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-display font-700 tracking-wider uppercase text-zinc-500 w-16">
+            <div className="flex flex-col gap-4 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-display font-800 tracking-wider uppercase text-[#0A0A0A]">
                   Số lượng
                 </span>
-                <div className="flex items-center border border-zinc-300">
+                <div className="flex items-center bg-zinc-50 border border-zinc-200 rounded-full p-1 shadow-inner">
                   <button
                     onClick={() => setQty(q => Math.max(1, q - 1))}
-                    className="w-9 h-9 flex items-center justify-center text-zinc-500 hover:bg-zinc-100 transition-colors"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-600 hover:bg-white hover:shadow-sm transition-all"
                   >
                     <Minus size={14} />
                   </button>
-                  <span className="w-10 text-center text-sm font-mono-data font-500">{qty}</span>
+                  <span className="w-12 text-center text-sm font-mono-data font-700">{qty}</span>
                   <button
                     onClick={() => setQty(q => Math.min(selectedVariant?.stock ?? 99, q + 1))}
-                    className="w-9 h-9 flex items-center justify-center text-zinc-500 hover:bg-zinc-100 transition-colors"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-600 hover:bg-white hover:shadow-sm transition-all"
                   >
                     <Plus size={14} />
                   </button>
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-3 mt-2">
                 <button
                   onClick={handleBuyNow}
                   disabled={!selectedVariant || !inStock}
-                  className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#E8002D] text-white font-display font-700 text-sm tracking-wider uppercase hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-[#E8002D] via-[#ff0055] to-[#E8002D] bg-[length:200%_auto] hover:animate-[gradient-shift_2s_linear_infinite] text-white font-display font-800 text-sm tracking-widest uppercase shadow-[0_10px_30px_rgba(232,0,45,0.4)] hover:shadow-[0_15px_40px_rgba(232,0,45,0.6)] hover:-translate-y-1 disabled:opacity-50 disabled:hover:-translate-y-0 disabled:shadow-none disabled:cursor-not-allowed transition-all duration-300 relative overflow-hidden group/buy"
                 >
-                  <Zap size={16} />
-                  {!selectedVariant ? 'CHỌN CẤU HÌNH' : 'Mua ngay'}
+                  <style>{`
+                    @keyframes gradient-shift {
+                      0% { background-position: 0% 50%; }
+                      50% { background-position: 100% 50%; }
+                      100% { background-position: 0% 50%; }
+                    }
+                    @keyframes zap-shake {
+                      0%, 100% { transform: rotate(0deg); }
+                      25% { transform: rotate(-15deg) scale(1.1); }
+                      75% { transform: rotate(15deg) scale(1.1); }
+                    }
+                  `}</style>
+                  <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover/buy:translate-y-[0%] transition-transform duration-300" />
+                  <Zap size={18} className="relative z-10 group-hover/buy:animate-[zap-shake_0.5s_ease-in-out_infinite]" />
+                  <span className="relative z-10">{!selectedVariant ? 'CHỌN CẤU HÌNH' : 'Mua ngay'}</span>
                 </button>
                 <button
                   onClick={handleAddToCart}
                   disabled={!selectedVariant || !inStock}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 border font-display font-700 text-sm tracking-wider uppercase disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
+                  className={`flex-1 sm:max-w-[200px] flex items-center justify-center gap-2 py-4 rounded-2xl border-2 font-display font-800 text-sm tracking-widest uppercase disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ${
                     addedToCart
-                      ? 'border-green-500 bg-green-500 text-white'
-                      : 'border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#0A0A0A] hover:text-white'
+                      ? 'border-green-500 bg-green-500 text-white shadow-lg'
+                      : 'border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#0A0A0A] hover:text-white hover:shadow-xl hover:-translate-y-1'
                   }`}
                 >
                   {addedToCart ? (
                     <>
-                      <Check size={16} />
+                      <Check size={18} className="animate-[scale-in_0.3s_ease-out]" />
                       Đã thêm
                     </>
                   ) : (
                     <>
-                      <ShoppingCart size={16} />
-                      {!selectedVariant ? 'CHỌN CẤU HÌNH' : 'Thêm vào giỏ'}
+                      <ShoppingCart size={18} />
+                      Thêm vào giỏ
                     </>
                   )}
                 </button>
@@ -507,56 +563,69 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             </div>
 
             {/* Trust signals */}
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-200">
+            <div className="grid grid-cols-3 gap-3 pt-6 border-t border-zinc-100 mt-2">
               {[
-                { icon: Shield, label: 'BH 12 tháng', sub: 'Chính hãng' },
-                { icon: Truck, label: 'Giao 2 giờ', sub: 'Nội thành' },
-                { icon: RotateCcw, label: 'Đổi 30 ngày', sub: 'Miễn phí' },
-              ].map(({ icon: Icon, label, sub }) => (
-                <div key={label} className="flex flex-col items-center gap-1 text-center py-3 bg-zinc-50 border border-zinc-200">
-                  <Icon size={16} className="text-[#E8002D]" />
-                  <p className="text-xs font-display font-700 text-[#0A0A0A] leading-tight">{label}</p>
-                  <p className="text-[10px] text-zinc-400 font-body">{sub}</p>
+                { icon: Shield, label: 'BH 12 tháng', sub: 'Chính hãng', color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100', hover: 'hover:shadow-[0_10px_20px_rgba(59,130,246,0.15)] hover:border-blue-300' },
+                { icon: Truck, label: 'Giao 2 giờ', sub: 'Nội thành', color: 'text-green-500', bg: 'bg-green-50', border: 'border-green-100', hover: 'hover:shadow-[0_10px_20px_rgba(34,197,94,0.15)] hover:border-green-300' },
+                { icon: RotateCcw, label: 'Đổi 30 ngày', sub: 'Miễn phí', color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100', hover: 'hover:shadow-[0_10px_20px_rgba(249,115,22,0.15)] hover:border-orange-300' },
+              ].map(({ icon: Icon, label, sub, color, bg, border, hover }) => (
+                <div key={label} className={`flex flex-col items-center gap-2 text-center p-3 rounded-2xl border transition-all duration-300 cursor-pointer ${bg} ${border} ${hover} group`}>
+                  <div className="p-2 rounded-full bg-white shadow-sm group-hover:scale-110 transition-transform duration-300">
+                    <Icon size={18} className={color} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-display font-800 text-[#0A0A0A] leading-tight">{label}</p>
+                    <p className="text-[9px] sm:text-[10px] text-zinc-500 font-body mt-0.5">{sub}</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
+        </div>
 
-        {/* ── TABS: SPECS & REVIEWS ── */}
-        <div className="mt-12">
-          <div className="flex border-b border-zinc-200">
+        {/* ── TABS & RECENTLY VIEWED GRID ── */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-[2fr_1fr] lg:grid-cols-[2.5fr_1fr] gap-6 lg:gap-8 items-start">
+          
+          {/* ── TABS: SPECS & REVIEWS ── */}
+          <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-zinc-100 overflow-hidden">
+            <div className="flex border-b border-zinc-200 relative">
             {(['specs', 'reviews'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-6 py-3 text-xs font-display font-700 tracking-widest uppercase border-b-2 -mb-px transition-colors ${
+                className={`relative px-6 py-4 text-xs font-display font-800 tracking-widest uppercase transition-colors z-10 ${
                   activeTab === tab
-                    ? 'border-[#E8002D] text-[#0A0A0A]'
-                    : 'border-transparent text-zinc-400 hover:text-zinc-700'
+                    ? 'text-[#0A0A0A]'
+                    : 'text-zinc-400 hover:text-zinc-700'
                 }`}
               >
                 {tab === 'specs' ? 'Thông số kỹ thuật' : `Đánh giá (${product.reviews?.length || 0})`}
+                {activeTab === tab && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#E8002D] shadow-[0_0_10px_rgba(232,0,45,0.5)]"></div>
+                )}
               </button>
             ))}
           </div>
 
           {activeTab === 'specs' && (
-            <div className="bg-white border border-zinc-200 mt-0">
-              <table className="w-full">
-                <tbody>
-                  {product.specs && Object.entries(product.specs).map(([key, value], i) => (
-                    value ? (
-                    <tr key={key} className={i % 2 === 0 ? 'bg-white' : 'bg-zinc-50'}>
-                      <td className="px-5 py-3.5 w-40 text-xs font-display font-700 tracking-wider uppercase text-zinc-500 border-r border-zinc-200">
-                        {SPEC_LABELS[key] ?? key}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm font-body text-[#0A0A0A]">{value}</td>
-                    </tr>
-                    ) : null
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-8 animate-[fade-in_0.3s_ease-out]">
+              <div className="rounded-2xl border border-zinc-200 overflow-hidden">
+                <table className="w-full">
+                  <tbody>
+                    {product.specs && Object.entries(product.specs).map(([key, value], i) => (
+                      value ? (
+                      <tr key={key} className={i % 2 === 0 ? 'bg-white' : 'bg-zinc-50'}>
+                        <td className="px-6 py-4 w-1/3 text-xs font-display font-800 tracking-wider uppercase text-zinc-500 border-r border-zinc-200">
+                          {SPEC_LABELS[key] ?? key}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-body text-[#0A0A0A] font-500">{value}</td>
+                      </tr>
+                      ) : null
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -668,11 +737,21 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
               {product.reviews?.map(review => (
                 <div key={review.id} className="bg-white border border-zinc-200 p-5">
                   <div className="flex items-start gap-3">
-                    <img
-                      src={review.avatar}
-                      alt={review.author}
-                      className="w-10 h-10 object-cover flex-shrink-0 bg-zinc-200"
-                    />
+                    {review.avatar && review.avatar !== 'null' ? (
+                      <img
+                        src={review.avatar}
+                        alt={review.author}
+                        className="w-10 h-10 object-cover flex-shrink-0 rounded-full bg-zinc-100"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null; // prevent infinite loop
+                          e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.author || 'U')}&background=e0e7ff&color=4f46e5&rounded=true`;
+                        }}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center bg-indigo-100 text-indigo-600 font-bold text-sm flex-shrink-0">
+                        {review.author ? review.author.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div>
@@ -702,6 +781,14 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             </div>
             );
           })()}
+            </div>
+
+
+          {/* ── RECENTLY VIEWED PRODUCTS ── */}
+          <div className="h-full">
+            <RecentlyViewed />
+          </div>
+
         </div>
 
         {/* ── RELATED PRODUCTS ── */}
@@ -720,6 +807,7 @@ function ProductDetailContent({ product, relatedProducts }: { product: Product, 
             </div>
           </section>
         )}
+
       </div>
     </div>
   );

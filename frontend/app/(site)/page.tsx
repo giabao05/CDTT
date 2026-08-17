@@ -1,10 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Zap, Shield, Truck, RotateCcw, ChevronRight, ChevronLeft, TrendingUp, Calendar, User, FileText } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Zap, Shield, Truck, RotateCcw, ChevronRight, ChevronLeft, TrendingUp, Calendar, User, FileText, Smartphone, Gift } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import type { Brand, Product } from '@/types';
-import { fetchFeaturedProducts, fetchProducts, fetchBanners, fetchArticles, fetchBrands } from '@/lib/api';
+import { fetchFeaturedProducts, fetchProducts, fetchBanners, fetchArticles, fetchBrands, getSystemSetting, fetchVouchers } from '@/lib/api';
 import ProductCard from '@/components/ProductCard';
+import LoadingScreen from '@/components/LoadingScreen';
+import { useAuthStore } from '@/store/authStore';
+import { X } from 'lucide-react';
 
 
 
@@ -15,33 +20,93 @@ const PRICE_SEGMENTS = [
   { label: 'Trên 20 triệu', sub: 'Flagship', color: '#E8002D' },
 ];
 
+let cachedHomeData: any = null;
+
 export default function HomePage() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [heroSlide, setHeroSlide] = useState(0);
-  const [featured, setFeatured] = useState<Product[]>([]);
-  const [newProducts, setNewProducts] = useState<Product[]>([]);
-  const [banners, setBanners] = useState<any[]>([]);
-  const [articles, setArticles] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [featured, setFeatured] = useState<Product[]>(cachedHomeData?.featData || []);
+  const [newProducts, setNewProducts] = useState<Product[]>(cachedHomeData?.newProducts || []);
+  const [banners, setBanners] = useState<any[]>(cachedHomeData?.bannersData || []);
+  const [articles, setArticles] = useState<any[]>(cachedHomeData?.articlesData || []);
+  const [showPromoPopup, setShowPromoPopup] = useState(true);
+  const [brands, setBrands] = useState<any[]>(cachedHomeData?.brandsData || []);
+  const [allProducts, setAllProducts] = useState<Product[]>(cachedHomeData?.allProducts || []);
   const [loading, setLoading] = useState(true);
+  const [trustFeatures, setTrustFeatures] = useState(cachedHomeData?.trustFeatures || [
+    { icon: 'Truck', label: 'Miễn phí giao hàng', sub: 'Đơn từ 5.000.000 ₫' },
+    { icon: 'Shield', label: 'Bảo hành chính hãng', sub: '12 – 24 tháng' },
+    { icon: 'RotateCcw', label: '1 đổi 1 trong 30 ngày', sub: 'Lỗi do nhà sản xuất' },
+    { icon: 'Zap', label: 'Giao trong 2 giờ', sub: 'Nội thành HCM & HN' },
+  ]);
+  const [footerSettings, setFooterSettings] = useState<any>(cachedHomeData?.footerSettings || null);
+  const [vouchers, setVouchers] = useState<any[]>(cachedHomeData?.vouchersData || []);
+  const [currentVoucherIndex, setCurrentVoucherIndex] = useState(0);
+
+  useEffect(() => {
+    if (vouchers.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentVoucherIndex(prev => (prev + 1) % vouchers.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [vouchers]);
 
   useEffect(() => {
     async function loadData() {
+      if (cachedHomeData) {
+        setLoading(false);
+        return;
+      }
       try {
-        const [featData, allData, bannersData, articlesData, brandsData] = await Promise.all([
+        const [featData, allData, bannersData, articlesData, brandsData, trustFeaturesSetting, footerSetting, vouchersData] = await Promise.all([
           fetchFeaturedProducts(),
           fetchProducts(),
           fetchBanners(),
           fetchArticles(),
-          fetchBrands()
+          fetchBrands(),
+          getSystemSetting('trust_features').catch(() => null),
+          getSystemSetting('footer_settings').catch(() => null),
+          fetchVouchers().catch(() => [])
         ]);
+        
+        const filteredBanners = bannersData.filter((b: any) => b.isActive).sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+        const slicedNewProducts = allData.products.slice(0, 8);
+        const filteredArticles = articlesData.filter((a: any) => a.isPublished).slice(0, 3);
+        const filteredVouchers = vouchersData && vouchersData.length > 0 ? vouchersData.filter((v: any) => v.isActive !== false) : [];
+        
+        let parsedTrust = trustFeatures;
+        let parsedFooter = null;
+
+        if (trustFeaturesSetting && trustFeaturesSetting.value) {
+          try { parsedTrust = JSON.parse(trustFeaturesSetting.value); } catch (e) {}
+        }
+        if (footerSetting && footerSetting.value) {
+          try { parsedFooter = JSON.parse(footerSetting.value); } catch (e) {}
+        }
+
+        cachedHomeData = {
+          featData,
+          bannersData: filteredBanners,
+          newProducts: slicedNewProducts,
+          allProducts: allData.products,
+          articlesData: filteredArticles,
+          brandsData,
+          vouchersData: filteredVouchers,
+          trustFeatures: parsedTrust,
+          footerSettings: parsedFooter
+        };
+
         setFeatured(featData);
-        setBanners(bannersData.filter((b: any) => b.isActive).sort((a: any, b: any) => a.sortOrder - b.sortOrder));
-        setNewProducts(allData.products.slice(0, 8)); // Just grab the latest 8 as new
+        setBanners(filteredBanners);
+        setNewProducts(slicedNewProducts);
         setAllProducts(allData.products);
-        setArticles(articlesData.filter((a: any) => a.isPublished).slice(0, 3)); // 3 latest articles
+        setArticles(filteredArticles);
         setBrands(brandsData);
+        setVouchers(filteredVouchers);
+        setTrustFeatures(parsedTrust);
+        setFooterSettings(parsedFooter);
+        
       } catch (e) {
         console.error(e);
       } finally {
@@ -51,7 +116,6 @@ export default function HomePage() {
     loadData();
   }, []);
 
-  // Use featured for hero slides, fallback to newProducts if featured is empty
   const heroProducts = featured.length >= 3 ? featured : (newProducts.length >= 3 ? newProducts : []);
 
   const heroSlides = heroProducts.slice(0, 3).map((p, i) => ({
@@ -76,106 +140,184 @@ export default function HomePage() {
   const slide = heroSlides[heroSlide];
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#F8F8F7]">Loading...</div>;
+    return <LoadingScreen />;
   }
+
+  const defaultFooter = {
+    companyName: 'PHONE STORE',
+    description: 'Hệ thống bán lẻ điện thoại chính hãng uy tín số 1 Việt Nam. Cam kết 100% hàng chính hãng.',
+    columns: [
+      { title: 'Sản phẩm', links: 'iPhone,Samsung Galaxy,Xiaomi,OPPO,Vivo' },
+      { title: 'Hỗ trợ', links: 'Theo dõi đơn hàng,Đổi trả & Hoàn tiền,Bảo hành,Liên hệ' },
+      { title: 'Công ty', links: 'Về Phone Store,Tuyển dụng,Chính sách,Blog' }
+    ],
+    copyright: '© 2025 Phone Store. All rights reserved.',
+    license: 'Giấy phép ĐKKD: 0123456789 — HCM, Việt Nam'
+  };
+
+  const activeFooter = footerSettings || defaultFooter;
 
   return (
     <div className="min-h-screen bg-[#F8F8F7]">
+      {/* Khuyến mãi Popup (Dựa vào cấu hình user) */}
+      {user?.promoNotifEnabled && showPromoPopup && (
+        <div className="fixed bottom-28 right-6 z-50 w-80 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-red-100 overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-500">
+          <div className="bg-gradient-to-r from-red-600 to-red-500 p-4 text-white relative">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <Gift size={20} /> Ưu đãi độc quyền!
+            </h3>
+            <button onClick={() => setShowPromoPopup(false)} className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="p-5">
+            <p className="text-gray-600 text-sm mb-4">Chào {user.name || 'bạn'}, hệ thống đang có ưu đãi giảm 20% cho toàn bộ sản phẩm hôm nay.</p>
+            <button onClick={() => { setShowPromoPopup(false); router.push('/promotions'); }} className="w-full bg-red-600 text-white font-bold py-2.5 rounded-lg hover:bg-red-700 transition-colors shadow-md shadow-red-600/30">
+              Xem ưu đãi ngay
+            </button>
+          </div>
+        </div>
+      )}
 
       {banners.length > 0 ? (
-        <section className="relative w-full h-[500px] md:h-[600px] lg:h-[700px] group bg-[#111111] border-b-[4px] border-[#5a0c0c] overflow-hidden p-4 md:p-8">
+        <section className="relative w-full h-[500px] md:h-[600px] lg:h-[700px] group bg-[#050505] overflow-hidden p-2 md:p-6">
           
-          {/* Cyber-Metallic Outer Background */}
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwVjB6bTEwIDEwYTEgMSAwIDAgMCAwIDJoLjAxYTEgMSAwIDAgMCAwLTJoLS4wMXoiIGZpbGw9IiMzMzMiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvc3ZnPg==')] opacity-20"></div>
-          
-          {/* The Inner Dark Metallic Plate */}
-          <div className="relative w-full h-full rounded-[2rem] overflow-hidden bg-gradient-to-br from-[#2a2a2a] via-[#1a1a1a] to-[#0a0a0a] shadow-[inset_0_0_50px_rgba(255,0,0,0.05),_0_0_40px_rgba(0,0,0,0.9)] border-[2px] border-[#333333]">
+          <div className="relative w-full h-full rounded-[2.5rem] overflow-hidden bg-[#0a0a0a] border border-[#333] shadow-[0_0_60px_rgba(0,0,0,0.9)] flex items-center">
             
-            {/* Red Glow Edge */}
-            <div className="absolute inset-2 border border-[#ff3333]/20 rounded-[1.5rem] shadow-[inset_0_0_40px_rgba(255,0,0,0.15)] pointer-events-none z-10"></div>
-            
-            {/* Concentric Ridges (Left) */}
-            <div className="absolute inset-0 bg-[repeating-radial-gradient(circle_at_0%_30%,_transparent_0,_transparent_15px,_rgba(255,255,255,0.02)_16px,_rgba(255,255,255,0.02)_17px)] pointer-events-none"></div>
+            {/* Elegant wavy vector-like background patterns */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,0,100,0.15),_transparent_50%)]"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_rgba(255,215,0,0.05),_transparent_40%)]"></div>
+            <div className="absolute w-[200%] h-[200%] top-[-50%] left-[-50%] opacity-20 pointer-events-none" style={{ backgroundImage: 'repeating-radial-gradient(circle at center, transparent 0, transparent 40px, rgba(255,215,0,0.1) 41px, rgba(255,215,0,0.1) 42px)' }}></div>
 
-            {banners.map((b, i) => (
-              <div 
-                key={b.id} 
-                className="absolute inset-0 transition-opacity duration-1000 ease-in-out flex items-center"
-                style={{ opacity: i === heroSlide ? 1 : 0, zIndex: i === heroSlide ? 10 : 0 }}
-              >
-                <div className="container mx-auto px-6 md:px-16 w-full h-full flex flex-col md:flex-row items-center justify-between gap-8 py-12 relative z-20">
-                  
-                  {/* Text Content (Left) */}
-                  <div className="flex-1 text-center md:text-left transform transition-all duration-1000 ease-out translate-y-8 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 mt-8 md:mt-0 max-w-xl" style={{ opacity: i === heroSlide ? 1 : 0, transform: i === heroSlide ? 'translateY(0)' : 'translateY(2rem)', transitionDelay: '200ms' }}>
-                    
-                    <div className="inline-block px-5 py-1.5 bg-gradient-to-r from-[#222] to-[#111] text-[#aaa] font-sans font-semibold text-[0.65rem] md:text-xs rounded-full mb-6 uppercase tracking-[0.25em] shadow-[0_5px_10px_rgba(0,0,0,0.5)] border border-[#444]">
-                      The Smart Choice
+
+            <div className="absolute inset-0 flex items-center">
+              <div className="container mx-auto px-6 md:px-16 w-full h-full flex flex-col md:flex-row items-center justify-between gap-8 py-12 relative z-20">
+                
+                {/* TEXT CONTAINER (Animating) */}
+                <div className="flex-1 w-full h-full relative flex items-center">
+                  {banners.map((b, i) => (
+                    <div 
+                      key={`text-${b.id}`}
+                      className="absolute left-0 right-0 flex flex-col items-center md:items-start text-center md:text-left transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform-gpu"
+                      style={{ 
+                        opacity: i === heroSlide ? 1 : 0, 
+                        zIndex: i === heroSlide ? 10 : 0,
+                        transform: i === heroSlide ? 'perspective(2000px) rotateX(0deg) translateZ(0) scale(1)' : 'perspective(2000px) rotateX(15deg) translateZ(-200px) translateY(40px) scale(0.95)',
+                        filter: i === heroSlide ? 'blur(0px) brightness(1)' : 'blur(15px) brightness(0.5)',
+                        pointerEvents: i === heroSlide ? 'auto' : 'none'
+                      }}
+                    >
+                      <div className="inline-flex items-center justify-center relative mb-6">
+                        <div className="absolute inset-0 bg-[#ffd700] rounded-sm transform skew-x-[-20deg] scale-105 opacity-30 blur-[2px]"></div>
+                        <div className="relative bg-[#111] border border-[#d4af37] px-6 py-1.5 transform skew-x-[-20deg] shadow-[0_0_15px_rgba(212,175,55,0.2)]">
+                          <span className="block transform skew-x-[20deg] text-[#d4af37] font-sans font-bold text-[10px] md:text-xs uppercase tracking-[0.3em]">
+                            THE SMART CHOICE
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <h2 className="text-5xl md:text-6xl lg:text-[5.5rem] font-serif uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 mb-6 tracking-wider leading-tight drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]">
+                        {b.title}
+                      </h2>
+                      
+                      <p className="font-sans text-sm md:text-base mb-10 max-w-md mx-auto md:mx-0 leading-relaxed text-transparent bg-clip-text bg-gradient-to-r from-gray-200 via-white to-gray-400 drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
+                        {b.description || 'Trải nghiệm sự hoàn mỹ. Khám phá ngay sản phẩm đỉnh cao với công nghệ vượt trội - Độc quyền, Giá tốt.'}
+                      </p>
+                      
+                      {b.linkUrl && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); router.push(b.linkUrl); }}
+                          className="group/btn relative inline-flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-[#5a0000] via-[#990000] to-[#5a0000] text-white font-sans font-bold text-sm uppercase tracking-widest rounded-full border-[2px] border-[#d4af37] shadow-[0_0_20px_rgba(255,0,0,0.4),_inset_0_0_10px_rgba(255,100,100,0.5)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(255,50,50,0.6)] active:scale-95 overflow-hidden"
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] group-hover/btn:translate-x-[150%] transition-transform duration-[1500ms]"></div>
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#ff6b6b] to-[#8b0000] border border-[#ffb3b3] shadow-[0_0_10px_#ff0000] flex items-center justify-center transform rotate-45">
+                            <div className="w-2 h-2 bg-white/80 rounded-sm blur-[1px]"></div>
+                          </div>
+                          KHÁM PHÁ NGAY
+                        </button>
+                      )}
                     </div>
-                    
-                    <h2 className="text-5xl md:text-6xl lg:text-[5rem] font-serif uppercase text-transparent bg-clip-text bg-gradient-to-b from-[#f3e5ab] via-[#d4af37] to-[#aa8022] mb-6 tracking-wide leading-[1.1] drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] filter drop-shadow-[0_2px_0_rgba(255,255,255,0.2)]">
-                      {b.title}
-                    </h2>
-                    
-                    <p className="text-[#ccc] font-sans text-sm md:text-lg font-medium mb-10 max-w-lg mx-auto md:mx-0 leading-relaxed drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
-                      {b.description || 'Trải nghiệm sự hoàn mỹ. Khám phá ngay sản phẩm đỉnh cao với công nghệ vượt trội - Độc quyền, Giá tốt.'}
-                    </p>
-                    
-                    {b.linkUrl && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); router.push(b.linkUrl); }}
-                        className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-b from-[#222] to-[#0a0a0a] text-[#ff4444] font-sans font-bold text-sm md:text-base uppercase tracking-widest rounded-full shadow-[0_15px_30px_rgba(0,0,0,0.6),_inset_0_0_15px_rgba(255,0,0,0.2)] transition-all duration-300 hover:scale-105 hover:shadow-[0_15px_40px_rgba(255,0,0,0.3),_inset_0_0_20px_rgba(255,0,0,0.4)] active:scale-95 group/btn border border-[#ff4444]/40"
-                      >
-                        <Zap size={18} className="text-[#ff4444] animate-pulse" />
-                        Khám Phá Ngay
-                      </button>
-                    )}
-                  </div>
+                  ))}
+                </div>
 
-                  {/* Product Image Platform (Right) */}
-                  <div className="flex-1 w-full h-full relative flex items-center justify-center md:justify-end">
-                     <div className="relative w-full h-full flex items-center justify-center max-w-[450px]">
-                        
-                        {/* Vibrant Outer Aura Glow */}
-                        <div className="absolute w-[85%] md:w-[90%] aspect-[4/5] md:aspect-square rounded-[3.5rem] bg-gradient-to-tr from-[#ff0055] via-[#ffaa00] to-[#00aaff] opacity-20 blur-2xl group-hover:opacity-70 group-hover:scale-110 transition-all duration-1000 animate-pulse z-0"></div>
+                {/* IMAGE CONTAINER (Static Rings, Animating Image) */}
+                <div className="flex-1 w-full h-full relative flex items-center justify-center md:justify-end cursor-pointer" onClick={() => { if (banners[heroSlide]?.linkUrl) router.push(banners[heroSlide].linkUrl) }}>
+                   <div className="relative w-[320px] h-[320px] md:w-[420px] md:h-[420px] flex items-center justify-center group/rings">
+                      
+                      {/* STATIC RINGS */}
+                      <div className="absolute inset-[-20%] rounded-full bg-[#ff0066] opacity-20 blur-[60px] group-hover/rings:opacity-40 transition-opacity duration-1000"></div>
+                      <div className="absolute inset-[0%] rounded-full border-[1px] border-[#d4af37]/40 shadow-[0_0_20px_rgba(255,0,100,0.5)] animate-[spin_20s_linear_infinite]"></div>
+                      <div className="absolute inset-[5%] rounded-full bg-gradient-to-br from-[#ff99cc] via-[#ff0066] to-[#660022] p-[6px] shadow-[0_0_40px_rgba(255,0,100,0.6)]">
+                        <div className="w-full h-full rounded-full bg-[#111]"></div>
+                      </div>
+                      <div className="absolute inset-[14%] rounded-full border-[8px] border-[#ff0066] shadow-[0_0_30px_#ff0066,_inset_0_0_30px_#ff0066] animate-[pulse_3s_ease-in-out_infinite]"></div>
+                      <div className="absolute inset-[15%] rounded-full bg-gradient-to-tr from-[#990033] via-[#ff0066] to-[#ff3399] opacity-80 backdrop-blur-md overflow-hidden">
+                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_40%,_rgba(0,0,0,0.4)_100%)]"></div>
+                      </div>
 
-                        {/* Solid White Base (Now acting as a pristine clipping container) */}
-                        <div className="absolute w-[85%] aspect-[4/5] md:aspect-square bg-white rounded-[3rem] shadow-[0_30px_60px_rgba(0,0,0,0.8),_inset_0_0_20px_rgba(0,0,0,0.05)] border-[4px] md:border-[6px] border-white/80 z-10 overflow-hidden flex items-center justify-center transform transition-all duration-1000 group-hover:-translate-y-4 group-hover:shadow-[0_50px_80px_rgba(255,50,50,0.2)] cursor-pointer" onClick={() => { if (b.linkUrl) router.push(b.linkUrl) }}>
-                          {/* Inner subtle styling */}
-                          <div className="absolute inset-0 bg-gradient-to-b from-white to-[#f8f8f8]"></div>
-                          
-                          {/* Shimmer effect that sweeps across on hover */}
-                          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/80 to-transparent opacity-0 group-hover:opacity-100 transform -translate-x-[150%] group-hover:translate-x-[150%] transition-all duration-[1500ms] ease-in-out z-20 pointer-events-none"></div>
+                      {/* ANIMATING IMAGES */}
+                      {banners.map((b, i) => {
+                        let state = 'next';
+                        if (i === heroSlide) state = 'active';
+                        else if (i === (heroSlide - 1 + banners.length) % banners.length) state = 'prev';
 
-                          {/* Image placed INSIDE to perfectly clip any sharp white corners */}
+                        return (
                           <img 
+                            key={`img-${b.id}`}
                             src={b.imageUrl} 
                             alt={b.title} 
-                            className="relative z-10 w-[95%] h-[95%] object-contain mix-blend-multiply hover:scale-110 transition-transform duration-[1000ms] ease-out drop-shadow-xl" 
+                            className="absolute z-20 w-[65%] h-[120%] object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.8)] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform-gpu group-hover/rings:scale-110 group-hover/rings:-translate-y-4"
+                            style={{ 
+                              opacity: state === 'active' ? 1 : 0, 
+                              zIndex: state === 'active' ? 10 : 0,
+                              transform: state === 'active' 
+                                ? 'perspective(2000px) rotateY(0deg) translateZ(0) scale(1)' 
+                                : state === 'prev' 
+                                  ? 'perspective(2000px) rotateY(30deg) translateZ(-300px) translateX(-100px) scale(0.8)' 
+                                  : 'perspective(2000px) rotateY(-30deg) translateZ(-300px) translateX(100px) scale(0.8)',
+                              filter: state === 'active' ? 'blur(0px)' : 'blur(10px)',
+                              pointerEvents: state === 'active' ? 'auto' : 'none'
+                            }}
                           />
-                        </div>
+                        );
+                      })}
 
-                        {/* Upgraded Glowing Gold Badge */}
-                        <div className="absolute top-[2%] md:top-[4%] z-30 px-6 py-2 bg-gradient-to-b from-[#e60000] via-[#b30000] to-[#800000] border border-[#ffcc00] rounded-full text-[#ffea80] font-bold text-sm tracking-widest shadow-[0_10px_30px_rgba(255,0,0,0.6),_inset_0_1px_3px_rgba(255,255,255,0.5)] transform transition-transform duration-700 group-hover:scale-110 pointer-events-none">
+                      {/* STATIC BADGE ĐỘC QUYỀN */}
+                      <div className="absolute -top-[5%] z-30 px-6 py-1.5 bg-gradient-to-b from-[#800000] to-[#4d0000] border-[2px] border-[#d4af37] rounded-full shadow-[0_10px_20px_rgba(0,0,0,0.8),_inset_0_2px_4px_rgba(255,255,255,0.2)] transform transition-transform duration-700 group-hover/rings:scale-110 pointer-events-none">
+                        <span className="text-[#fff5c3] font-sans font-bold text-xs tracking-widest drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
                           ĐỘC QUYỀN
-                        </div>
-                     </div>
-                  </div>
-
+                        </span>
+                      </div>
+                   </div>
                 </div>
+
               </div>
-            ))}
+            </div>
             
-            {/* Pagination Beads */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); setHeroSlide((prev) => (prev - 1 + banners.length) % banners.length); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 flex items-center justify-center rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:border-[#d4af37] transition-all duration-300 opacity-0 group-hover:opacity-100 hover:scale-110 shadow-[0_0_15px_rgba(0,0,0,0.8)]"
+            >
+              <ChevronLeft size={24} />
+            </button>
+
+            <button 
+              onClick={(e) => { e.stopPropagation(); setHeroSlide((prev) => (prev + 1) % banners.length); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 flex items-center justify-center rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:border-[#d4af37] transition-all duration-300 opacity-0 group-hover:opacity-100 hover:scale-110 shadow-[0_0_15px_rgba(0,0,0,0.8)]"
+            >
+              <ChevronRight size={24} />
+            </button>
+
             <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-3 z-30">
               {banners.map((_, i) => (
                 <button
                   key={i}
                   onClick={(e) => { e.stopPropagation(); setHeroSlide(i); }}
-                  className="h-2.5 transition-all duration-300 rounded-full shadow-[0_2px_5px_rgba(0,0,0,0.8)]"
+                  className="h-1.5 transition-all duration-300 rounded-full"
                   style={{
-                    width: i === heroSlide ? 30 : 10,
-                    background: i === heroSlide ? '#ff3333' : '#333333',
-                    boxShadow: i === heroSlide ? '0 0 10px rgba(255,51,51,0.5)' : 'none'
+                    width: i === heroSlide ? 32 : 12,
+                    background: i === heroSlide ? '#d4af37' : 'rgba(255,255,255,0.2)',
+                    boxShadow: i === heroSlide ? '0 0 10px rgba(212,175,55,0.5)' : 'none'
                   }}
                 />
               ))}
@@ -296,31 +438,29 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ── TRUST BAR ───────────────────────────────────── */}
-      <div className="bg-[#0A0A0A] border-y border-zinc-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-800">
-            {[
-              { icon: Truck, label: 'Miễn phí giao hàng', sub: 'Đơn từ 5.000.000 ₫' },
-              { icon: Shield, label: 'Bảo hành chính hãng', sub: '12 – 24 tháng' },
-              { icon: RotateCcw, label: 'Đổi trả 30 ngày', sub: 'Không cần lý do' },
-              { icon: Zap, label: 'Giao trong 2 giờ', sub: 'Nội thành HCM & HN' },
-            ].map(({ icon: Icon, label, sub }) => (
-              <div key={label} className="flex items-center gap-3 px-4 sm:px-6 py-4">
-                <div className="w-9 h-9 bg-zinc-900 border border-zinc-700 flex items-center justify-center flex-shrink-0">
-                  <Icon size={16} className="text-[#E8002D]" />
+      <div className="relative z-30 -mt-6 mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="bg-[#111]/90 backdrop-blur-xl rounded-2xl border border-zinc-800/80 shadow-[0_20px_40px_rgba(0,0,0,0.5)] overflow-hidden">
+          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-zinc-800/60">
+            {trustFeatures.map(({ icon, label, sub }) => {
+              const Icon = (LucideIcons as any)[icon] || LucideIcons.CheckCircle;
+              return (
+              <div key={label} className="group flex items-center gap-4 px-4 sm:px-6 py-5 cursor-pointer hover:bg-white/[0.03] transition-colors duration-300 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000"></div>
+                
+                <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700/50 flex items-center justify-center flex-shrink-0 group-hover:border-[#ff3333] group-hover:shadow-[0_0_15px_rgba(255,51,51,0.3)] transition-all duration-300 group-hover:-translate-y-1">
+                  <Icon size={20} className="text-[#E8002D] group-hover:text-[#ffcccc] transition-colors duration-300 group-hover:scale-110" />
                 </div>
-                <div>
-                  <p className="text-white text-xs font-display font-700 leading-tight">{label}</p>
-                  <p className="text-zinc-500 text-[10px] font-body mt-0.5">{sub}</p>
+                <div className="relative z-10">
+                  <p className="text-zinc-200 text-xs sm:text-sm font-display font-700 leading-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-[#ffaa00] transition-all duration-300">{label}</p>
+                  <p className="text-zinc-500 text-[10px] sm:text-[11px] font-body mt-0.5 group-hover:text-zinc-400 transition-colors duration-300">{sub}</p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* ── BRANDS ──────────────────────────────────────── */}
       <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-display font-800 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight">
@@ -336,12 +476,10 @@ export default function HomePage() {
 
         <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
           {brands.map((brand: any) => (
-            <div key={brand.name} className="relative group z-0 rounded-2xl transition-all duration-700 transform group-hover:-translate-y-3 group-hover:shadow-[0_20px_50px_rgba(255,0,128,0.15)]">
+            <div key={brand.name} className="relative group z-0 rounded-2xl transition-all duration-700 transform hover:-translate-y-3 hover:scale-105 hover-shake-tilt hover:shadow-[0_20px_50px_rgba(255,0,128,0.15)]">
               
-              {/* Massive Color Bleed Aura (Loang màu) */}
               <div className="absolute -inset-[15px] rounded-[2.5rem] bg-gradient-to-tr from-[#ff0055] via-[#ffaa00] to-[#00aaff] opacity-0 blur-2xl group-hover:opacity-80 transition-all duration-700 pointer-events-none z-0"></div>
 
-              {/* Spinning RGB Gradient Border */}
               <div className="absolute -inset-[3px] rounded-[1.1rem] overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10">
                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] aspect-square animate-[spin_3s_linear_infinite]" 
                       style={{ backgroundImage: 'conic-gradient(from 0deg, #ff0055, #ffaa00, #00aaff, #aa00ff, #ff0055)' }}>
@@ -352,7 +490,6 @@ export default function HomePage() {
                 onClick={() => router.push(`/product?brand=${brand.name}`)}
                 className="relative w-[130px] sm:w-[160px] flex flex-col items-center gap-3 p-3 sm:p-4 bg-white rounded-2xl overflow-hidden z-20 border border-zinc-200 group-hover:border-transparent transition-colors duration-500"
               >
-                {/* Shimmer effect that sweeps across on hover */}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/90 to-transparent opacity-0 group-hover:opacity-100 transform -translate-x-[150%] group-hover:translate-x-[150%] transition-all duration-[1200ms] ease-in-out z-20 pointer-events-none"></div>
 
                 <div className="w-full aspect-video rounded-lg overflow-hidden bg-zinc-50 border border-zinc-100 transition-colors z-10 flex items-center justify-center p-1">
@@ -376,7 +513,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── PRICE SEGMENTS ──────────────────────────────── */}
       <section className="py-4 px-4 sm:px-6 max-w-7xl mx-auto">
         <h2 className="font-display font-800 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight mb-6">
           Lọc theo mức giá
@@ -386,34 +522,54 @@ export default function HomePage() {
             <button
               key={seg.label}
               onClick={() => router.push('/product')}
-              className="group flex items-center gap-4 p-4 bg-white border border-zinc-200 hover:border-zinc-400 hover:shadow-md transition-all text-left"
+              className="relative group overflow-hidden flex items-center gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-zinc-200 hover:border-transparent transition-all duration-500 hover:shadow-[0_15px_30px_rgba(0,0,0,0.08)] hover:-translate-y-1 text-left z-10"
             >
-              <div
-                className="w-1 self-stretch flex-shrink-0"
-                style={{ background: seg.color }}
+              <div 
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none -z-10 rounded-2xl" 
+                style={{ background: `linear-gradient(135deg, ${seg.color}15, transparent)` }} 
               />
-              <div>
-                <p className="font-display font-700 text-sm text-[#0A0A0A] group-hover:text-[#E8002D] transition-colors">
-                  {seg.label}
+              
+              <div 
+                className="absolute -inset-[2px] rounded-[1.1rem] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none -z-20 animate-[spin_4s_linear_infinite]"
+                style={{ backgroundImage: `conic-gradient(from 0deg, ${seg.color}, transparent, ${seg.color})` }}
+              />
+              <div className="absolute inset-[1px] rounded-2xl bg-white pointer-events-none -z-10" />
+
+              <div
+                className="w-1.5 self-stretch rounded-full flex-shrink-0 group-hover:scale-y-125 transition-all duration-500"
+                style={{ background: seg.color, boxShadow: `0 0 10px ${seg.color}80` }}
+              />
+              
+              <div className="relative z-10 flex-1">
+                <p className="font-display font-800 text-sm text-[#0A0A0A] group-hover:translate-x-1 transition-transform duration-300">
+                  <span className="bg-clip-text group-hover:text-transparent transition-colors duration-300" style={{ backgroundImage: `linear-gradient(to right, #0A0A0A, ${seg.color})` }}>{seg.label}</span>
                 </p>
-                <p className="text-[11px] text-zinc-400 font-body mt-0.5">{seg.sub}</p>
+                <p className="text-[11px] text-zinc-500 font-body mt-0.5 group-hover:translate-x-1 transition-transform duration-300 delay-75">{seg.sub}</p>
               </div>
-              <ChevronRight size={14} className="ml-auto text-zinc-300 group-hover:text-[#E8002D] transition-colors" />
+              
+              <div 
+                className="w-8 h-8 rounded-full bg-zinc-50 border border-zinc-100 flex items-center justify-center group-hover:bg-white group-hover:border-transparent group-hover:rotate-[360deg] transition-all duration-700 shadow-sm" 
+                style={{ color: seg.color }}
+              >
+                 <ChevronRight size={16} />
+              </div>
             </button>
           ))}
         </div>
       </section>
 
-      {/* ── FEATURED PRODUCTS ───────────────────────────── */}
       <section className="py-10 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-8 bg-[#E8002D]" />
+          <div className="flex items-center gap-4 group cursor-pointer">
+            <div className="relative w-1.5 h-10 rounded-full overflow-hidden shadow-[0_0_10px_rgba(232,0,45,0.4)]">
+               <div className="absolute inset-0 bg-gradient-to-b from-[#E8002D] to-[#ff0055] group-hover:scale-y-150 transition-transform duration-500 ease-out" />
+               <div className="absolute inset-0 bg-[#E8002D] blur-[2px] opacity-70 animate-[pulse_2s_infinite]" />
+            </div>
             <div>
-               <p className="text-[10px] font-display font-600 tracking-widest uppercase text-zinc-400">
+               <p className="text-[10px] sm:text-xs font-display font-700 tracking-[0.2em] uppercase text-zinc-400 group-hover:text-[#E8002D] transition-colors duration-300">
                 Đề xuất cho bạn
               </p>
-              <h2 className="font-display font-800 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight">
+              <h2 className="font-display font-900 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#E8002D] group-hover:to-zinc-800 transition-all duration-300">
                 Sản phẩm nổi bật
               </h2>
             </div>
@@ -437,49 +593,87 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* ── PROMO BANNER ────────────────────────────────── */}
-      <section className="py-4 px-4 sm:px-6 max-w-7xl mx-auto">
-        <div className="relative overflow-hidden bg-[#0A0A0A] p-8 sm:p-12">
-          <div
-            className="absolute inset-0 opacity-10"
-            style={{
-              backgroundImage: 'repeating-linear-gradient(45deg, #E8002D 0, #E8002D 1px, transparent 0, transparent 50%)',
-              backgroundSize: '12px 12px',
-            }}
-          />
+      <section className="py-8 px-4 sm:px-6 max-w-7xl mx-auto">
+        <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#0a0a0a] via-[#1a0505] to-[#2a0000] p-8 sm:p-12 border border-[#ff0033]/20 shadow-[0_20px_50px_rgba(232,0,45,0.2)] group cursor-pointer" onClick={() => router.push('/promotions')}>
+          
+          <div className="absolute inset-0 opacity-20 mix-blend-screen pointer-events-none">
+             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwVjB6bTEwIDEwYTEgMSAwIDAgMCAwIDJoLjAxYTEgMSAwIDAgMCAwLTJoLS4wMXoiIGZpbGw9IiMzMzMiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvc3ZnPg==')] animate-[pulse_4s_infinite]" />
+          </div>
+          
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff0055]/30 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-[1500ms] ease-in-out pointer-events-none" />
+          
           <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            <div>
-              <p className="text-[#E8002D] text-[10px] font-display font-700 tracking-widest uppercase mb-2">
-                Flash Sale hôm nay
-              </p>
-              <h3 className="font-display font-900 text-white text-3xl sm:text-4xl tracking-tight">
-                Giảm đến 20%
-              </h3>
-              <p className="text-zinc-400 font-body text-sm mt-2">
-                Áp dụng cho toàn bộ điện thoại tầm trung đến 22:00 hôm nay
-              </p>
+            <div className="relative min-h-[160px] w-full sm:w-[70%]">
+              {vouchers.length > 0 ? vouchers.map((v, i) => (
+                <div 
+                  key={i}
+                  className={`absolute inset-0 flex flex-col justify-center transition-all duration-1000 ease-in-out ${
+                    (vouchers.length === 1 || i === currentVoucherIndex)
+                      ? 'opacity-100 translate-y-0 pointer-events-auto' 
+                      : 'opacity-0 translate-y-4 pointer-events-none'
+                  }`}
+                >
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded border border-[#ff0033]/50 bg-[#ff0033]/10 text-[#ff0033] text-xs font-bold tracking-widest uppercase mb-3 w-fit">
+                    <Gift size={14} className="animate-pulse" /> Mã Quà Tặng
+                  </div>
+                  <h3 className="font-display font-900 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 text-4xl sm:text-5xl lg:text-6xl tracking-tight mb-2 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                    Giảm ngay <span className="text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.5)]">{v.discountPercent}%</span>
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-3 mt-1">
+                    <div className="px-4 py-1.5 bg-gradient-to-r from-yellow-400 to-yellow-300 text-black font-mono font-black rounded text-sm sm:text-base shadow-[0_0_20px_rgba(250,204,21,0.6)] border border-yellow-200 uppercase tracking-wider relative overflow-hidden group/code">
+                      <div className="absolute inset-0 bg-white/40 -translate-x-full group-hover/code:translate-x-full transition-transform duration-500 ease-in-out" />
+                      {v.code}
+                    </div>
+                    <span className="text-zinc-400 text-sm">
+                      (Áp dụng đến {new Date(v.expiresAt || v.endDate || Date.now()).toLocaleDateString('vi-VN')})
+                    </span>
+                  </div>
+                </div>
+              )) : (
+                <div className="absolute inset-0 flex flex-col justify-center">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded border border-[#ff0033]/50 bg-[#ff0033]/10 text-[#ff0033] text-xs font-bold tracking-widest uppercase mb-3 w-fit">
+                    <Gift size={14} className="animate-pulse" /> Flash Sale
+                  </div>
+                  <h3 className="font-display font-900 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 text-4xl sm:text-5xl lg:text-6xl tracking-tight mb-2 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                    Miễn phí <span className="text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.5)]">Ship</span>
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-3 mt-1">
+                    <div className="px-4 py-1.5 bg-gradient-to-r from-yellow-400 to-yellow-300 text-black font-mono font-black rounded text-sm sm:text-base shadow-[0_0_20px_rgba(250,204,21,0.6)] border border-yellow-200 uppercase tracking-wider relative overflow-hidden group/code">
+                      <div className="absolute inset-0 bg-white/40 -translate-x-full group-hover/code:translate-x-full transition-transform duration-500 ease-in-out" />
+                      PHONE10
+                    </div>
+                    <span className="text-zinc-400 text-sm">
+                      cho đơn hàng trên 5 triệu
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
+            
             <button
-              onClick={() => router.push('/product')}
-              className="flex items-center gap-2 px-8 py-3.5 bg-[#E8002D] text-white font-display font-700 text-sm tracking-wider uppercase hover:bg-red-600 transition-colors flex-shrink-0"
+              onClick={(e) => { e.stopPropagation(); router.push('/promotions'); }}
+              className="relative overflow-hidden group/btn flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-[#E8002D] to-[#ff0055] text-white font-display font-800 text-sm tracking-wider uppercase rounded-full shadow-[0_10px_30px_rgba(232,0,45,0.5)] hover:shadow-[0_15px_40px_rgba(255,0,85,0.7)] hover:scale-110 transition-all duration-300 flex-shrink-0 mt-4 sm:mt-0"
             >
-              <TrendingUp size={16} />
-              Mua ngay
+               <span className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover/btn:translate-y-[0%] transition-transform duration-300" />
+               <TrendingUp size={18} className="relative z-10 group-hover/btn:animate-[spin_1s_ease-in-out_1]" />
+               <span className="relative z-10">Lấy mã ngay</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* ── NEW ARRIVALS ─────────────────────────────────── */}
       <section className="py-10 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-8 bg-[#0A0A0A]" />
+          <div className="flex items-center gap-4 group cursor-pointer">
+            <div className="relative w-1.5 h-10 rounded-full overflow-hidden shadow-[0_0_10px_rgba(0,170,255,0.4)]">
+               <div className="absolute inset-0 bg-gradient-to-b from-[#00aaff] to-[#0055ff] group-hover:scale-y-150 transition-transform duration-500 ease-out" />
+               <div className="absolute inset-0 bg-[#00aaff] blur-[2px] opacity-70 animate-[pulse_2.5s_infinite]" />
+            </div>
             <div>
-              <p className="text-[10px] font-display font-600 tracking-widest uppercase text-zinc-400">
+              <p className="text-[10px] sm:text-xs font-display font-700 tracking-[0.2em] uppercase text-zinc-400 group-hover:text-[#00aaff] transition-colors duration-300">
                 Hàng mới về
               </p>
-              <h2 className="font-display font-800 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight">
+              <h2 className="font-display font-900 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#00aaff] group-hover:to-zinc-800 transition-all duration-300">
                 Ra mắt gần đây
               </h2>
             </div>
@@ -497,16 +691,18 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* ── ARTICLES / NEWS ──────────────────────────────── */}
       <section className="py-10 px-4 sm:px-6 max-w-7xl mx-auto border-t border-zinc-200">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-8 bg-[#E8002D]" />
+          <div className="flex items-center gap-4 group cursor-pointer">
+            <div className="relative w-1.5 h-10 rounded-full overflow-hidden shadow-[0_0_10px_rgba(255,170,0,0.4)]">
+               <div className="absolute inset-0 bg-gradient-to-b from-[#ffaa00] to-[#ff5500] group-hover:scale-y-150 transition-transform duration-500 ease-out" />
+               <div className="absolute inset-0 bg-[#ffaa00] blur-[2px] opacity-70 animate-[pulse_3s_infinite]" />
+            </div>
             <div>
-              <p className="text-[10px] font-display font-600 tracking-widest uppercase text-[#E8002D]">
+              <p className="text-[10px] sm:text-xs font-display font-700 tracking-[0.2em] uppercase text-[#ffaa00] group-hover:text-[#ff5500] transition-colors duration-300">
                 Tin tức & Công nghệ
               </p>
-              <h2 className="font-display font-800 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight">
+              <h2 className="font-display font-900 text-2xl sm:text-3xl text-[#0A0A0A] tracking-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-[#ffaa00] group-hover:to-zinc-800 transition-all duration-300">
                 Bài viết mới nhất
               </h2>
             </div>
@@ -524,36 +720,41 @@ export default function HomePage() {
             {articles.map((article) => (
               <div 
                 key={article.id} 
-                className="group cursor-pointer bg-white rounded-xl border border-zinc-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col"
+                className="group relative z-0 cursor-pointer bg-white rounded-2xl border border-zinc-100 shadow-sm hover:shadow-[0_20px_40px_rgba(232,0,45,0.12)] hover:border-[#E8002D]/30 transition-all duration-500 overflow-hidden flex flex-col transform hover:-translate-y-2"
                 onClick={() => router.push(`/articles/${article.slug}`)}
               >
+                {/* Neon Glow Aura */}
+                <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-tr from-[#E8002D] to-[#ff4444] opacity-0 blur-xl group-hover:opacity-20 transition-all duration-500 -z-10 pointer-events-none"></div>
+
                 <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100">
                   {article.thumbnail ? (
                     <img 
                       src={article.thumbnail} 
                       alt={article.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      className="w-full h-full object-cover group-hover:scale-110 group-hover:rotate-1 transition-transform duration-700 ease-out" 
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-zinc-300">
                       <FileText size={48} />
                     </div>
                   )}
-                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-[#E8002D]">
-                    Công nghệ
+                  {/* Subtle Light Sweep */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-transparent opacity-0 group-hover:opacity-100 transform -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-[1500ms] pointer-events-none z-10"></div>
+                  
+                  <div className="absolute top-3 left-3 bg-[#E8002D]/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white shadow-lg z-20 uppercase tracking-wider">
+                    Tin Mới
                   </div>
                 </div>
                 
-                <div className="p-5 flex-1 flex flex-col">
+                <div className="p-5 flex-1 flex flex-col relative z-20 bg-white">
                   <h3 className="font-display font-700 text-lg text-[#0A0A0A] leading-tight mb-3 group-hover:text-[#E8002D] transition-colors line-clamp-2">
                     {article.title}
                   </h3>
                   
-                  {/* Extract text from HTML content for excerpt */}
                   <p className="text-zinc-500 font-body text-sm line-clamp-3 mb-4 flex-1" dangerouslySetInnerHTML={{ __html: article.content.substring(0, 150) + '...' }}></p>
                   
                   <div className="flex items-center justify-between text-xs text-zinc-400 mt-auto pt-4 border-t border-zinc-100">
-                    <div className="flex items-center gap-1.5">
+<div className="flex items-center gap-1.5">
                       <Calendar size={14} />
                       {new Date(article.createdAt).toLocaleDateString('vi-VN')}
                     </div>
@@ -570,67 +771,6 @@ export default function HomePage() {
           <div className="py-12 text-center text-zinc-500">Chưa có bài viết nào</div>
         )}
       </section>
-
-      {/* ── FOOTER ──────────────────────────────────────── */}
-      <footer className="bg-[#0A0A0A] border-t border-zinc-800 mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
-            <div className="col-span-2 sm:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 bg-[#E8002D] flex items-center justify-center">
-                  <span className="text-white font-display font-900 text-xs">P</span>
-                </div>
-                <span className="font-display font-900 text-white text-lg">
-                  PHONE<span className="text-[#E8002D]"> STORE</span>
-                </span>
-              </div>
-              <p className="text-zinc-500 text-xs font-body leading-relaxed">
-                Hệ thống bán lẻ điện thoại chính hãng uy tín số 1 Việt Nam.
-                Cam kết 100% hàng chính hãng.
-              </p>
-            </div>
-
-            {[
-              {
-                title: 'Sản phẩm',
-                links: ['iPhone', 'Samsung Galaxy', 'Xiaomi', 'OPPO', 'Vivo'],
-              },
-              {
-                title: 'Hỗ trợ',
-                links: ['Theo dõi đơn hàng', 'Đổi trả & Hoàn tiền', 'Bảo hành', 'Liên hệ'],
-              },
-              {
-                title: 'Công ty',
-                links: ['Về Phone Store', 'Tuyển dụng', 'Chính sách', 'Blog'],
-              },
-            ].map(col => (
-              <div key={col.title}>
-                <p className="text-white font-display font-700 text-xs tracking-widest uppercase mb-4">
-                  {col.title}
-                </p>
-                <ul className="space-y-2">
-                  {col.links.map(link => (
-                    <li key={link}>
-                      <a href="#" className="text-zinc-500 text-xs hover:text-white transition-colors font-body">
-                        {link}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          <div className="border-t border-zinc-800 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-zinc-600 text-xs font-mono-data">
-              © 2025 Phone Store. All rights reserved.
-            </p>
-            <p className="text-zinc-600 text-xs font-body">
-              Giấy phép ĐKKD: 0123456789 — HCM, Việt Nam
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

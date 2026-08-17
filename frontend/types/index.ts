@@ -1,6 +1,6 @@
-export type Brand = 'Apple' | 'Samsung' | 'Xiaomi' | 'OPPO' | 'Vivo';
+export type Brand = string;
 
-export type ProductCategory = 'flagship' | 'midrange' | 'budget';
+export type ProductCategory = string;
 
 export interface ProductVariant {
   id: string;
@@ -62,13 +62,19 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface AppliedCoupon {
+  code: string;
+  discount: number;
+  isGift: boolean;
+}
+
 export interface Cart {
   items: CartItem[];
-  couponCode: string | null;
-  discount: number;
+  coupons: AppliedCoupon[];
 }
 
 export interface FilterState {
+  categories: string[];
   brands: Brand[];
   priceRange: [number, number];
   storages: string[];

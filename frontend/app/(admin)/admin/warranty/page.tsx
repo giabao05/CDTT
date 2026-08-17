@@ -210,8 +210,7 @@ export default function WarrantyPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">Quan ly IMEI & Bao hanh</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Tra cuu Serial/IMEI, tiep nhan va theo doi lich su bao hanh</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setIsImeiModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium"><HardDrive size={15}/> Nhap Kho IMEI</button>
+        <div className="flex flex-wrap items-center gap-3">
           <button onClick={() => setIsWarrantyModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"><Plus size={15}/> Tiep nhan Bao hanh</button>
         </div>
       </div>

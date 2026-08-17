@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Bell, Monitor, Save, Loader2, CheckCircle2, Globe } from 'lucide-react';
+import { Bell, Monitor, Save, Loader2, CheckCircle2, Globe, LayoutDashboard } from 'lucide-react';
+import { getSystemSetting, updateSystemSetting } from '@/lib/api';
+
 
 export default function SettingsPage() {
   const [notifications, setNotifications] = useState(true);
@@ -8,6 +10,32 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<'light'|'dark'|'system'>('dark');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState(false);
+
+  const [trustFeatures, setTrustFeatures] = useState([
+    { icon: 'Truck', label: 'Miễn phí giao hàng', sub: 'Đơn từ 5.000.000 ₫' },
+    { icon: 'Shield', label: 'Bảo hành chính hãng', sub: '12 – 24 tháng' },
+    { icon: 'RotateCcw', label: '1 đổi 1 trong 30 ngày', sub: 'Lỗi do nhà sản xuất' },
+    { icon: 'Zap', label: 'Giao trong 2 giờ', sub: 'Nội thành HCM & HN' },
+  ]);
+
+  const [footerSettings, setFooterSettings] = useState<any>({
+    companyName: 'PHONE STORE',
+    description: 'Hệ thống bán lẻ điện thoại chính hãng uy tín số 1 Việt Nam. Cam kết 100% hàng chính hãng.',
+    columns: [
+      { title: 'Sản phẩm', links: 'iPhone, Samsung Galaxy, Xiaomi, OPPO, Vivo' },
+      { title: 'Hỗ trợ', links: 'Theo dõi đơn hàng, Đổi trả & Hoàn tiền, Bảo hành, Liên hệ' },
+      { title: 'Công ty', links: 'Về Phone Store, Tuyển dụng, Chính sách, Blog' },
+    ],
+    copyright: '© 2025 Phone Store. All rights reserved.',
+    license: 'Giấy phép ĐKKD: 0123456789 — HCM, Việt Nam'
+  });
+
+  const [contactSettings, setContactSettings] = useState<any>({
+    address: '123 Đường ABC, Quận X, TP.HCM',
+    hotline: '1900 1234',
+    email: 'support@phonestore.com',
+    website: 'www.phonestore.com'
+  });
 
   useEffect(() => {
     // Load current theme
@@ -21,6 +49,33 @@ export default function SettingsPage() {
     if (notifs) setNotifications(notifs === 'true');
     const emails = localStorage.getItem('emailNotifs');
     if (emails) setEmailAlerts(emails === 'true');
+
+    // Load Trust Features
+    getSystemSetting('trust_features').then((setting) => {
+      if (setting && setting.value) {
+        try {
+          setTrustFeatures(JSON.parse(setting.value));
+        } catch (e) { console.error('Error parsing trust features', e); }
+      }
+    });
+
+    // Load Footer Settings
+    getSystemSetting('footer_settings').then((setting) => {
+      if (setting && setting.value) {
+        try {
+          setFooterSettings(JSON.parse(setting.value));
+        } catch (e) { console.error('Error parsing footer settings', e); }
+      }
+    });
+
+    // Load Contact Settings
+    getSystemSetting('contact_settings').then((setting) => {
+      if (setting && setting.value) {
+        try {
+          setContactSettings(JSON.parse(setting.value));
+        } catch (e) { console.error('Error parsing contact settings', e); }
+      }
+    });
   }, []);
 
   const changeTheme = (newTheme: 'light'|'dark'|'system') => {
@@ -35,15 +90,23 @@ export default function SettingsPage() {
     // Update Header too (simulated via storage event if Header was listening, but we just set HTML classes here)
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
       localStorage.setItem('pushNotifs', String(notifications));
       localStorage.setItem('emailNotifs', String(emailAlerts));
-      setIsSubmitting(false);
+      
+      await updateSystemSetting('trust_features', JSON.stringify(trustFeatures), 'Trust bar features on home page');
+      await updateSystemSetting('footer_settings', JSON.stringify(footerSettings), 'Footer config on home page');
+      await updateSystemSetting('contact_settings', JSON.stringify(contactSettings), 'Contact information');
+      
       setToast(true);
       setTimeout(() => setToast(false), 3000);
-    }, 800);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -109,6 +172,191 @@ export default function SettingsPage() {
                 <option value="yyyy-mm-dd">YYYY-MM-DD (2023-12-31)</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Home Page Config */}
+        <div className="p-6 sm:p-8 hover:bg-slate-50/50 dark:hover:bg-[#111827]/30 transition-colors border-b border-slate-200 dark:border-[#1e293b]">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-500/20 flex items-center justify-center text-white">
+              <LayoutDashboard size={22} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Cấu hình Trang chủ (Trust Bar)</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Thay đổi các tính năng nổi bật hiển thị ở Trust Bar</p>
+            </div>
+          </div>
+
+          <div className="space-y-4 max-w-4xl">
+            {trustFeatures.map((tf, index) => (
+              <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-white dark:bg-[#111827]/50 rounded-xl border border-slate-200 dark:border-[#1e293b]">
+                <div className="group">
+                  <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Tên Icon (Lucide)</label>
+                  <select value={tf.icon} onChange={(e) => {
+                    const newTf = [...trustFeatures];
+                    newTf[index].icon = e.target.value;
+                    setTrustFeatures(newTf);
+                  }} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                    <option value="Truck">Giao hàng (Truck)</option>
+                    <option value="Shield">Bảo hành (Shield)</option>
+                    <option value="RotateCcw">Đổi trả (RotateCcw)</option>
+                    <option value="Zap">Tốc độ (Zap)</option>
+                    <option value="CheckCircle">Tích xanh (CheckCircle)</option>
+                    <option value="Package">Đóng gói (Package)</option>
+                    <option value="Smartphone">Điện thoại (Smartphone)</option>
+                    <option value="CreditCard">Thanh toán (CreditCard)</option>
+                    <option value="Headphones">Hỗ trợ (Headphones)</option>
+                    <option value="Gift">Quà tặng (Gift)</option>
+                    <option value="Star">Đánh giá (Star)</option>
+                    <option value="ThumbsUp">Hài lòng (ThumbsUp)</option>
+                  </select>
+                </div>
+                <div className="group">
+                  <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Tiêu đề (Label)</label>
+                  <input type="text" value={tf.label} onChange={(e) => {
+                    const newTf = [...trustFeatures];
+                    newTf[index].label = e.target.value;
+                    setTrustFeatures(newTf);
+                  }} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div className="group">
+                  <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Phụ đề (Sub)</label>
+                  <input type="text" value={tf.sub} onChange={(e) => {
+                    const newTf = [...trustFeatures];
+                    newTf[index].sub = e.target.value;
+                    setTrustFeatures(newTf);
+                  }} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-6 flex justify-end border-t border-slate-200 dark:border-[#1e293b] pt-6">
+            <button 
+              onClick={handleSave}
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            >
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Lưu cấu hình
+            </button>
+          </div>
+        </div>
+
+        {/* Contact Settings */}
+        <div className="p-6 sm:p-8 hover:bg-slate-50/50 dark:hover:bg-[#111827]/30 transition-colors border-b border-slate-200 dark:border-[#1e293b]">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-lg shadow-emerald-500/20 flex items-center justify-center text-white">
+              <Monitor size={22} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Thông tin liên hệ</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Thiết lập địa chỉ, số điện thoại, email hỗ trợ khách hàng</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 bg-white dark:bg-[#111827]/50 rounded-xl border border-slate-200 dark:border-[#1e293b] max-w-4xl">
+            <div className="group">
+              <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Địa chỉ (Address)</label>
+              <input type="text" value={contactSettings.address} onChange={(e) => setContactSettings({...contactSettings, address: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+            </div>
+            <div className="group">
+              <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotline CSKH</label>
+              <input type="text" value={contactSettings.hotline} onChange={(e) => setContactSettings({...contactSettings, hotline: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+            </div>
+            <div className="group">
+              <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Email hỗ trợ</label>
+              <input type="text" value={contactSettings.email} onChange={(e) => setContactSettings({...contactSettings, email: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+            </div>
+            <div className="group">
+              <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Website</label>
+              <input type="text" value={contactSettings.website} onChange={(e) => setContactSettings({...contactSettings, website: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+            </div>
+          </div>
+          
+          <div className="mt-6 flex justify-end border-t border-slate-200 dark:border-[#1e293b] pt-6">
+            <button 
+              onClick={handleSave}
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            >
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Lưu thông tin liên hệ
+            </button>
+          </div>
+        </div>
+
+        {/* Footer Config */}
+        <div className="p-6 sm:p-8 hover:bg-slate-50/50 dark:hover:bg-[#111827]/30 transition-colors">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-zinc-700 to-zinc-900 shadow-lg shadow-zinc-500/20 flex items-center justify-center text-white">
+              <LayoutDashboard size={22} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Cấu hình Chân trang (Footer)</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Thay đổi thông tin liên hệ, link tiện ích và bản quyền</p>
+            </div>
+          </div>
+
+          <div className="space-y-6 max-w-4xl">
+            {/* Header info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 bg-white dark:bg-[#111827]/50 rounded-xl border border-slate-200 dark:border-[#1e293b]">
+              <div className="group">
+                <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Tên Thương hiệu</label>
+                <input type="text" value={footerSettings.companyName} onChange={(e) => setFooterSettings({...footerSettings, companyName: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div className="group">
+                <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Mô tả ngắn</label>
+                <input type="text" value={footerSettings.description} onChange={(e) => setFooterSettings({...footerSettings, description: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+            </div>
+
+            {/* Link Columns */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {footerSettings.columns.map((col: any, idx: number) => (
+                <div key={idx} className="p-5 bg-white dark:bg-[#111827]/50 rounded-xl border border-slate-200 dark:border-[#1e293b] flex flex-col gap-3">
+                  <div className="group">
+                    <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Tiêu đề Cột {idx + 1}</label>
+                    <input type="text" value={col.title} onChange={(e) => {
+                      const newCols = [...footerSettings.columns];
+                      newCols[idx].title = e.target.value;
+                      setFooterSettings({...footerSettings, columns: newCols});
+                    }} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+                  </div>
+                  <div className="group">
+                    <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Danh sách Link (cách nhau bằng dấu phẩy)</label>
+                    <textarea value={col.links} onChange={(e) => {
+                      const newCols = [...footerSettings.columns];
+                      newCols[idx].links = e.target.value;
+                      setFooterSettings({...footerSettings, columns: newCols});
+                    }} className="w-full h-24 px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer bottom */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 bg-white dark:bg-[#111827]/50 rounded-xl border border-slate-200 dark:border-[#1e293b]">
+              <div className="group">
+                <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Bản quyền (Copyright)</label>
+                <input type="text" value={footerSettings.copyright} onChange={(e) => setFooterSettings({...footerSettings, copyright: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div className="group">
+                <label className="block text-[12px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Giấy phép ĐKKD</label>
+                <input type="text" value={footerSettings.license} onChange={(e) => setFooterSettings({...footerSettings, license: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1117] border border-slate-200 dark:border-[#1e293b] rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-6 flex justify-end border-t border-slate-200 dark:border-[#1e293b] pt-6">
+            <button 
+              onClick={handleSave}
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-zinc-700 to-zinc-900 hover:from-zinc-800 hover:to-black text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-zinc-500/30 hover:shadow-zinc-500/50 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            >
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Lưu cấu hình
+            </button>
           </div>
         </div>
 

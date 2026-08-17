@@ -19,8 +19,12 @@ public class SystemSettingController {
     }
 
     @GetMapping("/{id}")
-    public SystemSetting getById(@PathVariable String id) {
-        return service.getById(id);
+    public org.springframework.http.ResponseEntity<SystemSetting> getById(@PathVariable String id) {
+        SystemSetting setting = service.getById(id);
+        if (setting == null) {
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        return org.springframework.http.ResponseEntity.ok(setting);
     }
 
     @PostMapping

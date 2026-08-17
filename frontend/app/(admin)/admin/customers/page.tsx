@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Search, Lock, Unlock, Eye, TrendingUp, ShoppingBag, Shield, Users } from 'lucide-react';
 import type { Customer } from '@/types/admin';
 import { useAuthStore } from '@/store/authStore';
+import LoadingScreen from '@/components/LoadingScreen';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -107,7 +108,7 @@ export default function CustomersPage() {
   }
 
   if (loading) {
-    return <div className="p-6 text-center text-slate-500">Đang tải danh sách người dùng...</div>;
+    return <LoadingScreen />;
   }
 
   return (
